@@ -62,7 +62,7 @@ CI runs the checks above plus benchmark smoke tests. Timing thresholds are not
 enforced on shared runners. Weekly Dependabot updates cover Go dependencies and
 GitHub Actions. Workflow syntax is checked locally with actionlint v1.7.12.
 
-Local verification used Go 1.27.1 on Linux amd64. GitHub-hosted CI has not run
-because this checkout has no remote configured. The module path is
-`github.com/DiLRandI/confgen`. Before publishing, choose a license and tag a release.
-No release or remote publication has been performed.
+Local verification used Go 1.27.1 on Linux amd64. Hosted checks are available in
+the repository's [Actions tab](https://github.com/DiLRandI/confgen/actions).
+The module path is `github.com/DiLRandI/confgen`. No version tag has been created.
+Choose a license before distributing the library under an open-source license.

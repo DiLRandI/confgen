@@ -12,11 +12,11 @@ Requires Go 1.27.1 or newer. From this checkout:
 go install ./cmd/configgen
 ```
 
-The module path is `github.com/DiLRandI/confgen`. Once published, consumers can use
+The module path is `github.com/DiLRandI/confgen`. Consumers can use
 `go get github.com/DiLRandI/confgen/config` and install the generator with
 `go install github.com/DiLRandI/confgen/cmd/configgen@latest`.
 
-For a working local consumer today, see the [separate example module](examples/README.md).
+For a working local consumer, see the [separate example module](examples/README.md).
 Its `go.mod` replaces the dependency with this checkout.
 
 ## Define and generate
