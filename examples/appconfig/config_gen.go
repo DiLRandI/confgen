@@ -4,7 +4,7 @@ package appconfig
 
 import (
 	configContext "context"
-	configRuntime "go-config/config"
+	configRuntime "github.com/DiLRandI/confgen/config"
 	configTime "time"
 )
 

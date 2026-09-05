@@ -1,4 +1,4 @@
-module go-config
+module github.com/DiLRandI/confgen
 
 go 1.27.1
 

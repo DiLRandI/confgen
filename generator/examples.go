@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"go-config/config"
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/schema"
 	"gopkg.in/yaml.v3"
 )
 

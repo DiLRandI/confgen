@@ -17,19 +17,31 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            examples/go.sum
       - name: Check formatting
         run: test -z "$(gofmt -l .)"
       - name: Check module metadata
         run: |
           go mod tidy
-          git diff --exit-code -- go.mod go.sum
+          go -C examples mod tidy
+          git diff --exit-code -- go.mod go.sum examples/go.mod examples/go.sum
       - name: Check generated examples
         run: |
-          go generate ./...
+          go -C examples generate ./...
           test -z "$(git status --porcelain -- examples)"
       - run: go vet ./...
+      - run: go -C examples vet ./...
       - run: go test ./...
+      - run: go -C examples test ./...
       - run: go test -race ./...
+      - run: go -C examples test -race ./...
+      - name: Run consumer example
+        env:
+          DATABASE_URL: postgres://localhost/shop
+          SHOP_SERVER_PORT: '10000'
+        run: go -C examples run .
       - name: Check 32-bit integer limits
         env:
           GOARCH: '386'

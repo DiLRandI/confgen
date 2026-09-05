@@ -9,8 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go-config/config"
-	"go-config/internal/value"
+	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/internal/value"
 	"gopkg.in/yaml.v3"
 )
 

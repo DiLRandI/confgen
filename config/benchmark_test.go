@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"go-config/config"
+	"github.com/DiLRandI/confgen/config"
 )
 
 func BenchmarkLoadDefaults(b *testing.B) {

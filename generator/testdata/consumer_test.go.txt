@@ -7,7 +7,7 @@ import (
  "sync"
  "testing"
  "time"
- "go-config/config"
+ "github.com/DiLRandI/confgen/config"
 )
 
 func TestGeneratedConsumer(t *testing.T) {

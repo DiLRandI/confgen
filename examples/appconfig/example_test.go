@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"go-config/config"
-	appconfig "go-config/examples"
+	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/examples/appconfig"
 )
 
 func ExampleLoad() {

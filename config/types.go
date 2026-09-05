@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"go-config/internal/value"
+	"github.com/DiLRandI/confgen/internal/value"
 )
 
 // Kind identifies a schema type.

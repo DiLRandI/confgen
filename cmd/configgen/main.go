@@ -14,8 +14,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"go-config/generator"
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/generator"
+	"github.com/DiLRandI/confgen/schema"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stderr)) }
@@ -26,7 +26,7 @@ func run(args []string, stderr io.Writer) int {
 	out := fs.String("out", "config_gen.go", "generated Go output")
 	exYAML := fs.String("example-yaml", "", "optional YAML example output")
 	exEnv := fs.String("example-env", "", "optional environment example output")
-	imp := fs.String("runtime-import", "go-config/config", "runtime package import path")
+	imp := fs.String("runtime-import", "github.com/DiLRandI/confgen/config", "runtime package import path")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
 			return 0

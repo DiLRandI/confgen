@@ -1,14 +1,14 @@
 package schema_test
 
 import (
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/schema"
 	"os"
 	"strings"
 	"testing"
 )
 
 func TestCompileExample(t *testing.T) {
-	b, e := os.ReadFile("../examples/config.schema.yaml")
+	b, e := os.ReadFile("../examples/appconfig/config.schema.yaml")
 	if e != nil {
 		t.Fatal(e)
 	}

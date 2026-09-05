@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go-config/config"
+	"github.com/DiLRandI/confgen/config"
 )
 
 func ExampleLoad() {

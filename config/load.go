@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"sort"
 
-	"go-config/internal/document"
-	"go-config/internal/value"
+	"github.com/DiLRandI/confgen/internal/document"
+	"github.com/DiLRandI/confgen/internal/value"
 )
 
 // Load resolves sources left-to-right, converts only effective values, validates

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/schema"
 )
 
 func TestParseExample(t *testing.T) {
-	data, err := os.ReadFile("../examples/config.schema.yaml")
+	data, err := os.ReadFile("../examples/appconfig/config.schema.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

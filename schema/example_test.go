@@ -2,7 +2,7 @@ package schema_test
 
 import (
 	"fmt"
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/schema"
 	"testing"
 )
 

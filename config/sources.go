@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go-config/internal/document"
+	"github.com/DiLRandI/confgen/internal/document"
 )
 
 // Format identifies reader input syntax.

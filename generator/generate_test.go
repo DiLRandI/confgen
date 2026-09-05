@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"go-config/generator"
-	"go-config/schema"
+	"github.com/DiLRandI/confgen/generator"
+	"github.com/DiLRandI/confgen/schema"
 )
 
 func exampleModel(t testing.TB) *schema.Model {
 	t.Helper()
-	b, e := os.ReadFile("../examples/config.schema.yaml")
+	b, e := os.ReadFile("../examples/appconfig/config.schema.yaml")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -43,10 +43,10 @@ func TestGoldenAndDeterminism(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for file, want := range map[string][]byte{"config_gen.go": a, "config.example.yaml": y, "generated.env.example": env} {
+	for file, want := range map[string][]byte{"appconfig/config_gen.go": a, "config.example.yaml": y, "generated.env.example": env} {
 		got, e := os.ReadFile("../examples/" + file)
 		if e != nil || !bytes.Equal(got, want) {
-			t.Fatalf("golden mismatch %s; run go generate ./examples", file)
+			t.Fatalf("golden mismatch %s; run go -C examples generate ./...", file)
 		}
 	}
 }
@@ -69,7 +69,7 @@ func TestCompileGeneratedModule(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	mod := "module generatedtest\n\ngo 1.27.1\n\nrequire go-config v0.0.0\nreplace go-config => " + strconvQuote(root) + "\n"
+	mod := "module generatedtest\n\ngo 1.27.1\n\nrequire github.com/DiLRandI/confgen v0.0.0\nreplace github.com/DiLRandI/confgen => " + strconvQuote(root) + "\n"
 	consumer, e := os.ReadFile("testdata/consumer_test.go.txt")
 	if e != nil {
 		t.Fatal(e)

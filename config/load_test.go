@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"go-config/config"
+	"github.com/DiLRandI/confgen/config"
 )
 
 type testConfig struct {
