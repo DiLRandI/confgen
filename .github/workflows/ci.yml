@@ -31,6 +31,11 @@ jobs:
           go mod tidy
           go -C examples mod tidy
           git diff --exit-code -- go.mod go.sum examples/go.mod examples/go.sum
+      - name: Test this revision with the consumer module
+        run: |
+          task_workspace=$(mktemp -d)
+          (cd "$task_workspace" && go work init "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/examples")
+          echo "GOWORK=$task_workspace/go.work" >> "$GITHUB_ENV"
       - name: Check generated examples
         run: |
           go -C examples generate ./...
