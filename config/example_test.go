@@ -25,8 +25,7 @@ func ExampleLoad() {
 func ExampleError() {
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Path: "port", Kind: config.KindInt, GoIndex: []int{0}, Required: true}}}
 	_, err := config.Load[struct{ Port int }](context.Background(), d)
-	var configErr *config.Error
-	if errors.As(err, &configErr) {
+	if configErr, ok := errors.AsType[*config.Error](err); ok {
 		fmt.Println(configErr.Issues[0].Path, configErr.Issues[0].Kind)
 	}
 	// Output: port required

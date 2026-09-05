@@ -2,8 +2,9 @@ package schema_test
 
 import (
 	"fmt"
-	"github.com/DiLRandI/confgen/schema"
 	"testing"
+
+	"github.com/DiLRandI/confgen/schema"
 )
 
 func ExampleCompile() {

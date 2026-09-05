@@ -13,7 +13,7 @@ func TestRenameFailureRollback(t *testing.T) {
 			dir := t.TempDir()
 			a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
 			for _, p := range []string{a, b} {
-				if e := os.WriteFile(p, []byte("original"), 0600); e != nil {
+				if e := os.WriteFile(p, []byte("original"), 0o600); e != nil {
 					t.Fatal(e)
 				}
 			}
@@ -62,7 +62,7 @@ func TestCreateFilesDoesNotOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	existing := filepath.Join(dir, "existing")
 	fresh := filepath.Join(dir, "fresh")
-	if err := os.WriteFile(existing, []byte("original"), 0600); err != nil {
+	if err := os.WriteFile(existing, []byte("original"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := CreateFiles(map[string][]byte{existing: []byte("replace"), fresh: []byte("fresh")}); err == nil {

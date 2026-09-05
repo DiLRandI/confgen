@@ -81,7 +81,7 @@ func runInit(args []string, stderr io.Writer) int {
 		outputs[abs] = target.data
 	}
 	for path := range outputs {
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return fail(err)
 		}
 	}

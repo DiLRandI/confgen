@@ -12,7 +12,7 @@ func TestCLI(t *testing.T) {
 	dir := t.TempDir()
 	schema := filepath.Join(dir, "schema.yaml")
 	out := filepath.Join(dir, "config_gen.go")
-	if e := os.WriteFile(schema, []byte("version: 1\npackage: app\nfields: {port: {type: int, default: 8080}}"), 0600); e != nil {
+	if e := os.WriteFile(schema, []byte("version: 1\npackage: app\nfields: {port: {type: int, default: 8080}}"), 0o600); e != nil {
 		t.Fatal(e)
 	}
 	var stderr bytes.Buffer
@@ -26,7 +26,7 @@ func TestCLI(t *testing.T) {
 			t.Fatalf("accepted %v", args)
 		}
 	}
-	if e := os.WriteFile(schema, []byte("version: 1\npackage: app\nfields: {x: {type: duration, default: wrong}}"), 0600); e != nil {
+	if e := os.WriteFile(schema, []byte("version: 1\npackage: app\nfields: {x: {type: duration, default: wrong}}"), 0o600); e != nil {
 		t.Fatal(e)
 	}
 	stderr.Reset()

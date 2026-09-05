@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+
 	"github.com/DiLRandI/confgen/internal/value"
 )
 

@@ -1,10 +1,11 @@
 package schema_test
 
 import (
-	"github.com/DiLRandI/confgen/schema"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/DiLRandI/confgen/schema"
 )
 
 func TestCompileExample(t *testing.T) {

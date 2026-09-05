@@ -54,7 +54,7 @@ func Generate(m *schema.Model, options Options) ([]byte, error) {
 					}
 					desc = f.GoName + " is the " + string(r) + desc[n:]
 				}
-				for _, line := range strings.Split(strings.ReplaceAll(desc, "\r", ""), "\n") {
+				for line := range strings.SplitSeq(strings.ReplaceAll(desc, "\r", ""), "\n") {
 					fmt.Fprintf(&b, "// %s\n", line)
 				}
 			}
@@ -114,6 +114,7 @@ func goType(m *schema.Model, f config.FieldDescriptor) string {
 		return string(f.Kind)
 	}
 }
+
 func visit(fields []config.FieldDescriptor, fn func(config.FieldDescriptor)) {
 	for _, f := range fields {
 		fn(f)
@@ -165,6 +166,7 @@ func renderField(b *bytes.Buffer, f config.FieldDescriptor) {
 	}
 	fmt.Fprintln(b, "},")
 }
+
 func renderFieldPointer(b *bytes.Buffer, f config.FieldDescriptor) {
 	var tmp bytes.Buffer
 	renderField(&tmp, f)

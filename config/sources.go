@@ -134,9 +134,8 @@ func parseSource(data []byte, format Format, source, file string, d *Descriptor)
 
 func parseError(err error, source, file string) *Error {
 	kind := IssueSyntax
-	var pe *document.Error
 	loc := &Location{File: file, Line: 1, Column: 1}
-	if errors.As(err, &pe) {
+	if pe, ok := errors.AsType[*document.Error](err); ok {
 		kind = IssueKind(pe.Kind)
 		loc.Line, loc.Column = pe.Line, pe.Column
 	}
@@ -185,8 +184,10 @@ func checkKnown(n *document.Node, f FieldDescriptor, path string, ignore bool, s
 }
 
 // EnvOption customizes environment lookup.
-type EnvOption func(*envSource)
-type envSource struct{ lookup func(string) (string, bool) }
+type (
+	EnvOption func(*envSource)
+	envSource struct{ lookup func(string) (string, bool) }
+)
 
 // WithLookupEnv supplies an isolated lookup function, for tests or embedding.
 // It must be safe for concurrent calls when its Source is shared.

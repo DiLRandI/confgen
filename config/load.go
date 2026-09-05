@@ -72,8 +72,7 @@ func Load[T any](ctx context.Context, d Descriptor, sources ...Source) (*T, erro
 			return nil, ce
 		}
 		if err != nil {
-			var ce *Error
-			if errors.As(err, &ce) {
+			if _, ok := errors.AsType[*Error](err); ok {
 				return nil, err
 			}
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -172,6 +171,7 @@ func fieldAt(v reflect.Value, index []int) (reflect.Value, bool) {
 	}
 	return v, v.IsValid() && v.CanSet()
 }
+
 func assign(dest reflect.Value, f FieldDescriptor, v any) bool {
 	if !dest.IsValid() || !dest.CanSet() {
 		return false

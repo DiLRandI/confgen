@@ -66,7 +66,7 @@ func writeFiles(outputs map[string][]byte, rename func(string, string) error) er
 		}
 		seen[abs] = true
 		f := staged{path: abs}
-		mode := os.FileMode(0644)
+		mode := os.FileMode(0o644)
 		if info, e := os.Lstat(abs); e == nil {
 			if !info.Mode().IsRegular() {
 				return fmt.Errorf("output must be a regular file: %s", p)

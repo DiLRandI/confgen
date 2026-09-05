@@ -45,6 +45,7 @@ func encoded(v any) *yaml.Node { n := &yaml.Node{}; _ = n.Encode(v); return n }
 func put(n *yaml.Node, key string, value *yaml.Node) {
 	n.Content = append(n.Content, encoded(key), value)
 }
+
 func renderFields(m *Model, fields []config.FieldDescriptor) *yaml.Node {
 	n := mapping()
 	for _, f := range fields {
@@ -52,6 +53,7 @@ func renderFields(m *Model, fields []config.FieldDescriptor) *yaml.Node {
 	}
 	return n
 }
+
 func renderField(m *Model, f config.FieldDescriptor) *yaml.Node {
 	n := mapping()
 	put(n, "type", encoded(string(f.Kind)))
@@ -111,6 +113,7 @@ func renderField(m *Model, f config.FieldDescriptor) *yaml.Node {
 	}
 	return n
 }
+
 func renderDefault(f config.FieldDescriptor, v any) *yaml.Node {
 	if f.Kind == config.KindObject {
 		if raw, ok := v.(map[string]any); ok {

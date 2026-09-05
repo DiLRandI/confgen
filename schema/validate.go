@@ -84,7 +84,7 @@ func exported(s string) bool {
 func GoName(key string) string {
 	const initialisms = " API ASCII CPU CSS DNS EOF GUID HTML HTTP HTTPS ID IP JSON QPS RAM RPC SLA SMTP SQL SSH TCP TLS TTL UDP UI UID URI URL UTF8 UUID VM XML XMPP XSRF XSS "
 	var b strings.Builder
-	for _, part := range strings.Split(key, "_") {
+	for part := range strings.SplitSeq(key, "_") {
 		if part == "" {
 			continue
 		}
