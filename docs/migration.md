@@ -22,8 +22,15 @@ confgen init --from config.yaml --package appconfig \
 ```
 
 confgen creates missing output directories, an editable schema, and typed Go.
-It never modifies `config.yaml` and refuses to replace existing outputs.
-Defaults are copied from the input. Review them for credentials before committing.
+It never modifies `config.yaml` and refuses to replace existing outputs. Input
+values are not copied as defaults unless you add `--copy-defaults`:
+
+```sh
+confgen init --from config.yaml --copy-defaults --package appconfig \
+  --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
+```
+
+Review copied values for credentials before committing.
 
 The inferred schema uses `int64` for port and `string` for timeout. You can edit it:
 
@@ -72,6 +79,9 @@ For a quick disposable generation without saving a schema:
 ```sh
 confgen generate --from config.json --package appconfig --out appconfig/config_gen.go
 ```
+
+Add `--copy-defaults` to this command when the input values should become
+defaults in the generated contract.
 
 Use `init` when you want an editable contract. Defaults for `init` outputs are
 `config.schema.yaml` and `config_gen.go` in the current directory; pass explicit

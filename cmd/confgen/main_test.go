@@ -47,3 +47,42 @@ func TestHelp(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateFromDoesNotCopyDefaultsUnlessRequested(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "config.yaml")
+	original := []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\npassword: sentinel-secret\n")
+	if err := os.WriteFile(input, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	without := filepath.Join(dir, "without.go")
+	with := filepath.Join(dir, "with.go")
+	var stderr bytes.Buffer
+	if code := run([]string{"generate", "--from", input, "--out", without}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	if code := run([]string{"generate", "--from", input, "--copy-defaults", "--out", with}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	withoutCode, err := os.ReadFile(without)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withCode, err := os.ReadFile(with)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(withoutCode, []byte("HasDefault: true")) || !bytes.Contains(withCode, []byte("HasDefault: true")) {
+		t.Fatal("generate --from default policy is incorrect")
+	}
+	if bytes.Contains(withoutCode, []byte("sentinel-secret")) || !bytes.Contains(withCode, []byte("sentinel-secret")) {
+		t.Fatal("generate --from copied an input secret without opt-in")
+	}
+	unchanged, err := os.ReadFile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(original, unchanged) {
+		t.Fatal("generate --from changed input")
+	}
+}

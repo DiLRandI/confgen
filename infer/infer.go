@@ -1,5 +1,5 @@
 // Package infer bootstraps configuration contracts from existing YAML or JSON.
-// Values become defaults. It never guesses requiredness, secrets, or durations.
+// Input values are copied into schema defaults only when Options.CopyDefaults is true.
 package infer
 
 import (
@@ -14,6 +14,9 @@ import (
 type Options struct {
 	Package   string
 	EnvPrefix string
+	// CopyDefaults embeds input values in the schema and generated Go.
+	// It is false by default.
+	CopyDefaults bool
 }
 
 // Error describes an ambiguous or unsupported input without echoing its value.
@@ -45,7 +48,7 @@ func fromNode(name string, n *document.Node, options Options) (*schema.Model, er
 	if options.Package == "" {
 		options.Package = "appconfig"
 	}
-	f, err := i.field(n, "", true)
+	f, err := i.field(n, "", options.CopyDefaults)
 	if err != nil {
 		return nil, err
 	}

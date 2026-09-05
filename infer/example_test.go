@@ -8,7 +8,7 @@ import (
 )
 
 func ExampleFromConfig() {
-	m, err := infer.FromConfig("config.yaml", []byte("port: 8080\ntimeout: 30s\n"), infer.Options{Package: "appconfig"})
+	m, err := infer.FromConfig("config.yaml", []byte("port: 8080\ntimeout: 30s\n"), infer.Options{Package: "appconfig", CopyDefaults: true})
 	if err != nil {
 		panic(err)
 	}

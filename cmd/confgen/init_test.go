@@ -95,3 +95,51 @@ func TestInitFailures(t *testing.T) {
 		t.Fatal(b.String())
 	}
 }
+
+func TestInitCopyDefaults(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "config.yaml")
+	original := []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\npassword: sentinel-secret\n")
+	if err := os.WriteFile(input, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schemaPath := filepath.Join(dir, "schema.yaml")
+	out := filepath.Join(dir, "config.go")
+	var stderr bytes.Buffer
+	withoutSchema := filepath.Join(dir, "without-schema.yaml")
+	withoutOut := filepath.Join(dir, "without.go")
+	if code := run([]string{"init", "--from", input, "--schema", withoutSchema, "--out", withoutOut}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	withoutCode, err := os.ReadFile(withoutOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(withoutCode, []byte("sentinel-secret")) {
+		t.Fatal("init copied an input secret without opt-in")
+	}
+	if code := run([]string{"init", "--from", input, "--copy-defaults", "--schema", schemaPath, "--out", out}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	schemaBytes, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(schemaBytes, []byte("default:")) {
+		t.Fatal("init --copy-defaults did not copy defaults")
+	}
+	withCode, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(withCode, []byte("sentinel-secret")) {
+		t.Fatal("init --copy-defaults did not copy input values")
+	}
+	unchanged, err := os.ReadFile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(original, unchanged) {
+		t.Fatal("init changed input")
+	}
+}

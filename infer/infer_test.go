@@ -20,7 +20,7 @@ func TestInference(t *testing.T) {
 		{"config.json", `{"server":{"port":8080,"host":"localhost","timeout":"30s"},"debug":false,"huge":18446744073709551615,"ratio":0.75,"backends":[{"name":"a","port":1},{"port":2,"name":"b"}],"origins":["a","b"],"empty":{}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m, err := infer.FromConfig(tc.name, []byte(tc.input), infer.Options{Package: "appconfig"})
+			m, err := infer.FromConfig(tc.name, []byte(tc.input), infer.Options{Package: "appconfig", CopyDefaults: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,6 +50,37 @@ func TestInference(t *testing.T) {
 				t.Fatal("invented metadata")
 			}
 		})
+	}
+}
+
+func TestInferenceDoesNotCopyDefaultsByDefault(t *testing.T) {
+	m, err := infer.FromConfig("config.yaml", []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\ndebug: false\n"), infer.Options{Package: "appconfig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range m.Descriptor.Fields {
+		if f.HasDefault {
+			t.Fatalf("field %q unexpectedly has a default", f.Path)
+		}
+		for _, child := range f.Children {
+			if child.HasDefault {
+				t.Fatalf("nested field %q unexpectedly has a default", child.Path)
+			}
+		}
+		if f.Item != nil && f.Item.HasDefault {
+			t.Fatalf("list field %q unexpectedly has an item default", f.Path)
+		}
+	}
+}
+
+func TestInferenceCopiesDefaultsWhenOptedIn(t *testing.T) {
+	m, err := infer.FromConfig("config.yaml", []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\ndebug: false\n"), infer.Options{Package: "appconfig", CopyDefaults: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := m.Descriptor.Fields
+	if fields[0].HasDefault || !fields[0].Children[0].HasDefault || !fields[1].HasDefault || fields[1].Item.HasDefault {
+		t.Fatalf("unexpected opt-in defaults: %+v", fields)
 	}
 }
 
@@ -90,7 +121,7 @@ func TestRoundTripConsumer(t *testing.T) {
 	for _, name := range []string{"sample.yaml", "sample.json"} {
 		t.Run(name, func(t *testing.T) {
 			input := `{"server":{"port":8080,"timeout":"30s"},"max":9223372036854775807,"backends":[{"name":"a","port":1},{"name":"b","port":2}]}`
-			m, err := infer.FromConfig(name, []byte(input), infer.Options{Package: "consumer"})
+			m, err := infer.FromConfig(name, []byte(input), infer.Options{Package: "consumer", CopyDefaults: true})
 			if err != nil {
 				t.Fatal(err)
 			}

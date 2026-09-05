@@ -35,6 +35,7 @@ func run(args []string, stderr io.Writer) int {
 	}
 	input := fs.String("schema", "", "required YAML schema path")
 	from := fs.String("from", "", "infer directly from YAML or JSON without writing a schema")
+	copyDefaults := fs.Bool("copy-defaults", false, "copy inferred input values into schema defaults")
 	pkg := fs.String("package", "appconfig", "Go package for inferred configuration")
 	out := fs.String("out", "config_gen.go", "generated Go output")
 	exYAML := fs.String("example-yaml", "", "optional YAML example output")
@@ -59,7 +60,7 @@ func run(args []string, stderr io.Writer) int {
 	}
 	var m *schema.Model
 	if *from != "" {
-		m, err = infer.FromConfig(*input, data, infer.Options{Package: *pkg})
+		m, err = infer.FromConfig(*input, data, infer.Options{Package: *pkg, CopyDefaults: *copyDefaults})
 	} else {
 		m, err = schema.Compile(*input, data)
 	}

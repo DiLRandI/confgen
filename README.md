@@ -20,9 +20,10 @@ confgen init --from config.yaml --package appconfig \
   --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
 ```
 
-This creates a starter schema and Go types. Values become defaults; add required
-fields, secrets, validation, and descriptions as needed. `init` never replaces
-existing files. See the [migration guide](docs/migration.md).
+This creates a starter schema and Go types. Inferred values are not copied as
+defaults unless you pass `--copy-defaults`; add required fields, secrets,
+validation, and descriptions as needed. `init` never replaces existing files.
+See the [migration guide](docs/migration.md).
 
 For a new project or an explicit contract, start with a schema below.
 
