@@ -57,3 +57,29 @@ func TestRenameFailureRollback(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateFilesDoesNotOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "existing")
+	fresh := filepath.Join(dir, "fresh")
+	if err := os.WriteFile(existing, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := CreateFiles(map[string][]byte{existing: []byte("replace"), fresh: []byte("fresh")}); err == nil {
+		t.Fatal("existing file accepted")
+	}
+	got, err := os.ReadFile(existing)
+	if err != nil || string(got) != "original" {
+		t.Fatal("original changed")
+	}
+	if _, err := os.Stat(fresh); !os.IsNotExist(err) {
+		t.Fatal("partial output")
+	}
+	if err := CreateFiles(map[string][]byte{fresh: []byte("created")}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = os.ReadFile(fresh)
+	if err != nil || string(got) != "created" {
+		t.Fatal("new file not written")
+	}
+}
