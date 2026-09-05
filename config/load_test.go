@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -175,6 +176,37 @@ func TestFilesAndReaders(t *testing.T) {
 	issue(t, e, config.IssueSource)
 	_, e = config.Load[struct{}](context.Background(), d, config.Reader("bad-format", strings.NewReader("{}"), 99))
 	issue(t, e, config.IssueSource)
+}
+
+func TestPermissionError(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("requires POSIX permissions and an unprivileged user")
+	}
+	p := filepath.Join(t.TempDir(), "private.yaml")
+	if err := os.WriteFile(p, []byte("{}"), 0000); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []config.Source{config.File(p), config.OptionalFile(p)} {
+		_, err := config.Load[struct{}](context.Background(), config.Descriptor{}, source)
+		if !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("permission error lost: %v", err)
+		}
+	}
+}
+
+func TestJSONErrorCategories(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		kind  config.IssueKind
+	}{
+		{`{"server":{"port":null},"debug":false,"name":""}`, config.IssueType},
+		{`{"server":{"port":1,"port":2}}`, config.IssueDuplicate},
+		{`{"unknown":1}`, config.IssueUnknownField},
+		{`{"name":`, config.IssueSyntax},
+	} {
+		_, err := config.Load[testConfig](context.Background(), descriptor(), config.Reader("json", strings.NewReader(tt.input), config.FormatJSON))
+		issue(t, err, tt.kind)
+	}
 }
 
 type brokenReader struct{}

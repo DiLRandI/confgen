@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 // files. It rejects duplicate destinations, symlinks, and non-regular targets.
 // A process or machine crash between renames can leave a mixed output set.
 func WriteFiles(outputs map[string][]byte) error {
+	return writeFiles(outputs, os.Rename)
+}
+
+func writeFiles(outputs map[string][]byte, rename func(string, string) error) error {
 	type staged struct {
 		path, temp, backup string
 		existed            bool
@@ -74,20 +79,23 @@ func WriteFiles(outputs map[string][]byte) error {
 		}
 	}
 	for i, f := range files {
-		if e := os.Rename(f.temp, f.path); e != nil {
+		if e := rename(f.temp, f.path); e != nil {
+			result := e
 			for j := i - 1; j >= 0; j-- {
 				prev := files[j]
 				var re error
 				if prev.existed {
-					re = os.Rename(prev.backup, prev.path)
+					re = rename(prev.backup, prev.path)
 				} else {
 					re = os.Remove(prev.path)
 				}
 				if re != nil {
-					return fmt.Errorf("replace output: %w; rollback %s: %v", e, prev.path, re)
+					// Preserve the only recovery copy if restoration also fails.
+					files[j].backup = ""
+					result = errors.Join(result, fmt.Errorf("rollback %s failed; backup retained at %s: %w", prev.path, prev.backup, re))
 				}
 			}
-			return e
+			return result
 		}
 	}
 	return nil
