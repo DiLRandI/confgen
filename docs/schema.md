@@ -1,4 +1,4 @@
-# Schema Specification — Version 1
+# Schema reference
 
 ## 1. Overview
 
@@ -395,3 +395,24 @@ Recommended ordering:
 11. constraint validation.
 
 Collect multiple independent issues where practical rather than stopping at the first semantic error.
+
+## Implementation notes
+
+`schema.Compile` parses and validates the complete schema. `schema.Parse` alone
+checks structure and retains YAML nodes; it does not validate defaults or types.
+Diagnostics currently stop at the first schema error. Runtime final validation
+aggregates independent failures in schema order.
+
+The generated package must have a non-main Go package name and an exported root
+type name. Root and nested type names must not collide with generated helpers.
+Empty object schemas are supported.
+
+String lengths count Unicode code points. Floats must be finite. YAML aliases,
+merge keys, and non-string mapping keys are rejected. Collection item fields
+cannot have independent environment mappings; set the whole list or map with
+its parent environment variable. Explicit environment names use portable
+`[A-Za-z_][A-Za-z0-9_]*` syntax.
+
+Never store real credentials in schema defaults. Defaults appear in generated
+Go source. Generated YAML and environment examples replace secret values with
+neutral placeholders, including secrets inside list-of-object defaults.

@@ -1,111 +1,81 @@
-# Go Configuration Library — Implementation Handoff
+# confgen
 
-This package is the implementation contract for a small schema-first Go configuration library.
+Define configuration once in YAML, generate Go structs, and load YAML, JSON,
+and environment variables. Later sources win. Defaults, validation, and secret
+metadata come from the schema; runtime code never reads the schema file.
 
-Implementation has started. See the [documentation guide](docs/README.md),
-[verified progress](docs/progress.md), and [design decisions](docs/decisions.md).
-The application API below describes the target; it is not available yet.
+## Install
 
-## Product promise
+Requires Go 1.27.1 or newer. From this checkout:
 
-Define configuration once in `config.schema.yaml`, generate strongly typed Go code, and load values from ordered YAML, JSON, and environment sources with deterministic precedence.
+```sh
+go install ./cmd/configgen
+```
 
-The intended application experience is deliberately small:
+The module path is `github.com/DiLRandI/confgen`. Once published, consumers can use
+`go get github.com/DiLRandI/confgen/config` and install the generator with
+`go install github.com/DiLRandI/confgen/cmd/configgen@latest`.
+
+For a working local consumer today, see the [separate example module](examples/README.md).
+Its `go.mod` replaces the dependency with this checkout.
+
+## Define and generate
+
+Save this as `appconfig/config.schema.yaml`:
+
+```yaml
+version: 1
+package: appconfig
+env_prefix: APP
+fields:
+  port:
+    type: int
+    default: 8080
+    min: 1
+    max: 65535
+  database_url:
+    type: string
+    required: true
+    secret: true
+```
+
+Add `appconfig/generate.go`:
 
 ```go
-cfg := appconfig.MustLoad(
+package appconfig
+
+//go:generate go run github.com/DiLRandI/confgen/cmd/configgen -schema config.schema.yaml -out config_gen.go
+```
+
+Run `go generate ./...`, then `go mod tidy`. Commit the generated Go file.
+The CLI also accepts `-example-yaml config.example.yaml` and
+`-example-env .env.example`. These are templates; the library does not load
+`.env` files. `-runtime-import` overrides the generated runtime import path.
+
+## Load
+
+Import your generated `appconfig` package and `github.com/DiLRandI/confgen/config`, then:
+
+```go
+cfg, err := appconfig.Load(
     config.OptionalFile("config.yaml"),
     config.Env(),
 )
+if err != nil {
+    return err
+}
+fmt.Println(cfg.Port)
 ```
 
-Later sources win. Schema defaults are conceptually the lowest-priority source.
+Set `APP_DATABASE_URL` before loading. `APP_PORT` overrides the file and default.
+Generated packages also provide `LoadContext` and `MustLoad`.
 
-## Read these documents in order
+Required means present: `0`, `false`, and `""` count. Objects merge by leaf;
+lists and maps replace. Unknown file fields and duplicate keys are errors.
+Secret diagnostics are redacted, but printing the config struct can expose
+secrets. Never put real credentials in schema defaults.
 
-1. `ARCHITECTURE.md` — system boundaries, data flow, packages, and invariants.
-2. `SCHEMA_SPEC.md` — authoritative schema grammar and validation rules.
-3. `RUNTIME_SPEC.md` — sources, merge semantics, conversion, validation, and public runtime API.
-4. `CODEGEN_SPEC.md` — `configgen`, generated Go code, deterministic output, and examples generation.
-5. `ERROR_SPEC.md` — structured error model, issue categories, formatting, and secret redaction.
-6. `TEST_PLAN.md` — unit, integration, acceptance, race, and fuzz coverage.
-7. `IMPLEMENTATION_PLAN.md` — phased implementation order and completion gates.
-8. `CODEX_INSTRUCTIONS.md` — concrete coding-agent instructions and non-negotiable decisions.
-9. `MASTER_SPEC.md` — compact end-to-end product contract for reference during implementation.
-
-The `examples/` directory contains a representative schema, YAML config, JSON config, and environment example.
-
-## In scope for v1
-
-- YAML schema as the single source of truth.
-- Generated Go configuration types and descriptors.
-- YAML configuration files.
-- JSON configuration files.
-- Environment variables.
-- Explicit source ordering where later sources override earlier sources.
-- Defaults.
-- Presence-based `required` validation.
-- Scalars, nested objects, lists, and string-keyed maps.
-- Go-standard durations using `time.ParseDuration`.
-- Secret metadata and redaction in library-generated diagnostics.
-- Unknown-field detection.
-- Duplicate-key detection.
-- Structured, inspectable errors.
-- Generated `Load`, `LoadContext`, and `MustLoad` helpers.
-- Optional example YAML and environment generation.
-
-## Explicitly out of scope for v1
-
-- CLI flags as a configuration source.
-- TOML.
-- `.env` file parsing.
-- Consul, etcd, Vault, AWS SSM, Kubernetes providers.
-- Hot reload or file watching.
-- Runtime dynamic getters such as `GetString`.
-- Configuration interpolation or templating.
-- Nullable/pointer field generation.
-- Remote configuration.
-- Dependency injection.
-- Configuration UI.
-
-The `Source` interface must remain extensible so third-party sources can be added later without expanding the core package.
-
-## Non-negotiable invariants
-
-- The schema file is the configuration contract.
-- Runtime code never reparses the schema file.
-- Later runtime sources win.
-- Defaults are lower priority than every runtime source.
-- Required validation checks presence, never Go zero values.
-- Empty environment variables count as present.
-- Objects merge by leaf path.
-- Lists replace atomically.
-- Maps replace atomically.
-- Unknown file fields are errors by default.
-- YAML/JSON `null` is unsupported in v1.
-- Secret values are never emitted by library-generated diagnostics.
-- Generated output is deterministic and formatted.
-- No global mutable configuration registry.
-
-## Suggested repository layout
-
-```text
-/
-├── config/                 # Public runtime package
-├── schema/                 # Schema parser and validation
-├── generator/              # Go and example-file generation
-├── cmd/configgen/          # CLI
-├── internal/testutil/      # Shared test helpers
-├── examples/               # End-to-end example inputs
-└── docs/                   # Optional user-facing docs later
-```
-
-## Positioning
-
-Do not position this project as "a smaller Viper." The intended differentiation is:
-
-> A schema-first configuration generator for Go. Define your configuration once, generate strongly typed Go code, and safely compose YAML, JSON, and environment sources with deterministic precedence.
-
-Short tagline:
-
-> Typed Go configuration without writing the same configuration twice.
+See the [schema reference](docs/schema.md), [executable examples](examples/appconfig/example_test.go),
+[benchmark results](docs/benchmarks.md), and [development checks](docs/development.md).
+Read API documentation with `go doc -all ./config`, `go doc -all ./schema`,
+or `go doc -all ./generator`. Run the example tests with `go -C examples test -v ./...`.
