@@ -1,0 +1,13 @@
+server:
+  port: 9000
+
+storage_dir: /var/lib/shop
+log_level: warn
+
+allowed_origins:
+  - https://shop.example
+  - https://admin.example
+
+labels:
+  environment: production
+  region: ap-south

@@ -1,0 +1,14 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 9000,
+    "timeout": "45s"
+  },
+  "storage_dir": "/var/lib/shop",
+  "debug": false,
+  "log_level": "info",
+  "allowed_origins": ["https://shop.example"],
+  "labels": {
+    "environment": "production"
+  }
+}

@@ -1,0 +1,63 @@
+version: 1
+package: appconfig
+name: Config
+env_prefix: SHOP
+unknown_fields: error
+
+fields:
+  server:
+    type: object
+    fields:
+      host:
+        type: string
+        default: "0.0.0.0"
+        description: Address the HTTP server binds to.
+
+      port:
+        type: int
+        default: 8080
+        min: 1
+        max: 65535
+        description: HTTP listen port.
+
+      timeout:
+        type: duration
+        default: 30s
+        min: 100ms
+        max: 5m
+
+  database:
+    type: object
+    fields:
+      url:
+        type: string
+        required: true
+        secret: true
+        env: DATABASE_URL
+
+  storage_dir:
+    type: path
+    default: "./data"
+
+  debug:
+    type: bool
+    default: false
+
+  log_level:
+    type: string
+    default: info
+    enum:
+      - debug
+      - info
+      - warn
+      - error
+
+  allowed_origins:
+    type: list
+    items:
+      type: string
+
+  labels:
+    type: map
+    values:
+      type: string
