@@ -1,0 +1,13 @@
+server:
+  # Address the HTTP server binds to.
+  host: 0.0.0.0
+  # HTTP listen port.
+  port: 8080
+  timeout: 30s
+database:
+  url: ""
+storage_dir: ./data
+debug: false
+log_level: info
+allowed_origins: []
+labels: {}

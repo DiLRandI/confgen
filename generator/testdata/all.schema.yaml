@@ -1,0 +1,32 @@
+version: 1
+package: generatedtest
+env_prefix: CHECK
+fields:
+  text: {type: string, default: hello, min_length: 1, max_length: 20, pattern: '^h', enum: [hello, hi]}
+  path: {type: path, default: ./data}
+  boolean: {type: bool, required: true, default: false}
+  integer: {type: int, default: 0, min: 0, max: 10}
+  signed: {type: int64, default: -9223372036854775808}
+  unsigned: {type: uint, default: 0}
+  huge: {type: uint64, default: 18446744073709551615, min: 18446744073709551614}
+  floating: {type: float64, default: 1.25}
+  timeout: {type: duration, default: 1h30m, min: 1m, max: 2h}
+  nested:
+    type: object
+    fields:
+      api_url: {type: string, go_name: Endpoint, default: local}
+  backends:
+    type: list
+    default: [{name: primary}]
+    items:
+      type: object
+      fields:
+        name: {type: string, required: true}
+        port: {type: int, default: 80}
+        options:
+          type: object
+          fields:
+            tls: {type: bool, default: true}
+  labels: {type: map, values: {type: string}, default: {z: last, a: first}}
+  private: {type: string, env: false, default: private}
+  password: {type: string, required: true, secret: true, env: PASSWORD}
