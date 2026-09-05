@@ -16,7 +16,7 @@ func TestInitAndGenerate(t *testing.T) {
 			dir := t.TempDir()
 			input := filepath.Join(dir, "config."+ext)
 			original := []byte(`{"server":{"port":8080,"timeout":"30s"}}`)
-			if err := os.WriteFile(input, original, 0600); err != nil {
+			if err := os.WriteFile(input, original, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			schemaPath := filepath.Join(dir, "appconfig", "config.schema.yaml")
@@ -49,7 +49,7 @@ func TestInitAndGenerate(t *testing.T) {
 				t.Fatal("direct generation differs from init")
 			}
 			b = bytes.Replace(b, []byte("type: string"), []byte("type: duration"), 1)
-			if err := os.WriteFile(schemaPath, b, 0600); err != nil {
+			if err := os.WriteFile(schemaPath, b, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			if run([]string{"generate", "--schema", schemaPath, "--out", out}, &log) != 0 {
@@ -67,7 +67,7 @@ func TestInitFailures(t *testing.T) {
 	for _, tc := range []struct{ input, ext, want string }{{"x: null", "yaml", "null"}, {"x: []", "yaml", "empty"}, {"x: [1, a]", "yaml", "incompatible"}, {"x: [", "yaml", "syntax"}, {"x = 1", "toml", "extension"}} {
 		dir := t.TempDir()
 		input := filepath.Join(dir, "config."+tc.ext)
-		if err := os.WriteFile(input, []byte(tc.input), 0600); err != nil {
+		if err := os.WriteFile(input, []byte(tc.input), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		out := filepath.Join(dir, "generated.go")
@@ -81,7 +81,7 @@ func TestInitFailures(t *testing.T) {
 	}
 	dir := t.TempDir()
 	input := filepath.Join(dir, "input.yaml")
-	if err := os.WriteFile(input, []byte("x: 1"), 0600); err != nil {
+	if err := os.WriteFile(input, []byte("x: 1"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init"}, {"init", "--from", filepath.Join(dir, "missing.yaml")}, {"init", "--from", input, "--schema", input}, {"init", "--from", input, "--schema", filepath.Join(dir, "same"), "--out", filepath.Join(dir, "same")}} {

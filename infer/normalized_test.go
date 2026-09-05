@@ -1,9 +1,10 @@
 package infer
 
 import (
+	"testing"
+
 	"github.com/DiLRandI/confgen/config"
 	"github.com/DiLRandI/confgen/internal/document"
-	"testing"
 )
 
 func TestNormalizedTextAdapter(t *testing.T) {

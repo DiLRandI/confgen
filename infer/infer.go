@@ -62,6 +62,7 @@ type inference struct{ file string }
 func (i inference) fail(n *document.Node, path, reason string) error {
 	return &Error{Path: path, Reason: reason, Location: schema.Location{File: i.file, Line: n.Line, Column: n.Column}}
 }
+
 func (i inference) field(n *document.Node, path string, defaults bool) (config.FieldDescriptor, error) {
 	f := config.FieldDescriptor{Path: path}
 	if n.Fields != nil {
@@ -157,6 +158,7 @@ func native(n *document.Node) (any, error) {
 	}
 	return n.Scalar()
 }
+
 func compatible(a, b config.FieldDescriptor) bool {
 	if a.Kind != b.Kind {
 		return false

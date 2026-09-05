@@ -46,9 +46,11 @@ func descriptor() config.Descriptor {
 func reader(s string) config.Source {
 	return config.Reader("test", strings.NewReader(s), config.FormatYAML)
 }
+
 func environment(m map[string]string) config.Source {
 	return config.Env(config.WithLookupEnv(func(k string) (string, bool) { v, ok := m[k]; return v, ok }))
 }
+
 func issue(t *testing.T, err error, kind config.IssueKind) {
 	t.Helper()
 	var e *config.Error
@@ -153,14 +155,14 @@ func TestFilesAndReaders(t *testing.T) {
 	for _, ext := range []string{"yaml", "yml", "json"} {
 		t.Run(ext, func(t *testing.T) {
 			p := filepath.Join(t.TempDir(), "config."+ext)
-			if e := os.WriteFile(p, []byte(`{"server":{"port":1},"debug":false,"name":""}`), 0600); e != nil {
+			if e := os.WriteFile(p, []byte(`{"server":{"port":1},"debug":false,"name":""}`), 0o600); e != nil {
 				t.Fatal(e)
 			}
 			c, e := config.Load[testConfig](context.Background(), descriptor(), config.File(p))
 			if e != nil || c.Server.Port != 1 {
 				t.Fatalf("%+v %v", c, e)
 			}
-			if e := os.WriteFile(p, []byte(`{"server":{"port":2},"debug":false,"name":""}`), 0600); e != nil {
+			if e := os.WriteFile(p, []byte(`{"server":{"port":2},"debug":false,"name":""}`), 0o600); e != nil {
 				t.Fatal(e)
 			}
 			c, e = config.Load[testConfig](context.Background(), descriptor(), config.File(p))
@@ -179,7 +181,7 @@ func TestFilesAndReaders(t *testing.T) {
 		t.Fatal(e)
 	}
 	dir := filepath.Join(t.TempDir(), "dir.yaml")
-	if e := os.Mkdir(dir, 0700); e != nil {
+	if e := os.Mkdir(dir, 0o700); e != nil {
 		t.Fatal(e)
 	}
 	_, e = config.Load[struct{}](context.Background(), d, config.OptionalFile(dir))
@@ -195,7 +197,7 @@ func TestPermissionError(t *testing.T) {
 		t.Skip("requires POSIX permissions and an unprivileged user")
 	}
 	p := filepath.Join(t.TempDir(), "private.yaml")
-	if err := os.WriteFile(p, []byte("{}"), 0000); err != nil {
+	if err := os.WriteFile(p, []byte("{}"), 0o000); err != nil {
 		t.Fatal(err)
 	}
 	for _, source := range []config.Source{config.File(p), config.OptionalFile(p)} {
@@ -249,8 +251,10 @@ func TestConstraintsAndRedaction(t *testing.T) {
 		raw  any
 		c    config.Constraints
 	}{
-		{config.KindInt, 0, config.Constraints{Min: 1}}, {config.KindInt, 10, config.Constraints{Max: 9}},
-		{config.KindString, "bad", config.Constraints{Enum: []any{"good"}}}, {config.KindString, "sentinel-secret", config.Constraints{Pattern: "^safe$"}},
+		{config.KindInt, 0, config.Constraints{Min: 1}},
+		{config.KindInt, 10, config.Constraints{Max: 9}},
+		{config.KindString, "bad", config.Constraints{Enum: []any{"good"}}},
+		{config.KindString, "sentinel-secret", config.Constraints{Pattern: "^safe$"}},
 	} {
 		d := config.Descriptor{Fields: []config.FieldDescriptor{{Path: "secret", Kind: tc.kind, GoIndex: []int{0}, HasDefault: true, Default: tc.raw, Secret: true, Constraints: tc.c}}}
 		_, err := config.Load[struct{ X string }](context.Background(), d)
@@ -363,6 +367,7 @@ func BenchmarkLoadReader(b *testing.B) {
 		}
 	}
 }
+
 func BenchmarkLoadEnv(b *testing.B) {
 	d := descriptor()
 	s := environment(map[string]string{"APP_PORT": "8080", "APP_TIMEOUT": "30s", "APP_DEBUG": "false", "EXPLICIT_NAME": "app"})

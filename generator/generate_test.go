@@ -94,7 +94,7 @@ func TestCompileGeneratedModule(t *testing.T) {
 		t.Fatal(e)
 	}
 	for name, data := range map[string][]byte{"go.mod": []byte(mod), "config_gen.go": code, "consumer_test.go": consumer} {
-		if e := os.WriteFile(filepath.Join(dir, name), data, 0600); e != nil {
+		if e := os.WriteFile(filepath.Join(dir, name), data, 0o600); e != nil {
 			t.Fatal(e)
 		}
 	}
@@ -111,7 +111,7 @@ func strconvQuote(s string) string { return `"` + strings.ReplaceAll(s, `\`, `\\
 func TestWriteFiles(t *testing.T) {
 	dir := t.TempDir()
 	a := filepath.Join(dir, "a.go")
-	if e := os.WriteFile(a, []byte("old"), 0600); e != nil {
+	if e := os.WriteFile(a, []byte("old"), 0o600); e != nil {
 		t.Fatal(e)
 	}
 	bad := filepath.Join(dir, "missing", "b.go")
@@ -127,7 +127,7 @@ func TestWriteFiles(t *testing.T) {
 	}
 	b, _ = os.ReadFile(a)
 	info, _ := os.Stat(a)
-	if string(b) != "new" || info.Mode().Perm() != 0600 {
+	if string(b) != "new" || info.Mode().Perm() != 0o600 {
 		t.Fatal("replacement or mode wrong")
 	}
 	entries, _ := os.ReadDir(dir)

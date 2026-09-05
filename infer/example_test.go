@@ -2,6 +2,7 @@ package infer_test
 
 import (
 	"fmt"
+
 	"github.com/DiLRandI/confgen/infer"
 	"github.com/DiLRandI/confgen/schema"
 )

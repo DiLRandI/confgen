@@ -25,6 +25,7 @@ func BenchmarkLoadDefaults(b *testing.B) {
 		}
 	}
 }
+
 func BenchmarkLoadJSON(b *testing.B) {
 	d := descriptor()
 	s := config.Reader("bench", strings.NewReader(`{"server":{"port":8080,"timeout":"30s"},"debug":false,"name":"app","list":["a","b"],"labels":{"region":"local"}}`), config.FormatJSON)
@@ -35,10 +36,11 @@ func BenchmarkLoadJSON(b *testing.B) {
 		}
 	}
 }
+
 func BenchmarkLoadFile(b *testing.B) {
 	d := descriptor()
 	path := filepath.Join(b.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("server: {port: 8080, timeout: 30s}\ndebug: false\nname: app\nlist: [a, b]\nlabels: {region: local}"), 0600); err != nil {
+	if err := os.WriteFile(path, []byte("server: {port: 8080, timeout: 30s}\ndebug: false\nname: app\nlist: [a, b]\nlabels: {region: local}"), 0o600); err != nil {
 		b.Fatal(err)
 	}
 	s := config.File(path)

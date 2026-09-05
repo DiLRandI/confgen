@@ -55,18 +55,26 @@ func TestInference(t *testing.T) {
 
 func TestInferenceErrors(t *testing.T) {
 	for _, tc := range []struct{ name, input, want string }{
-		{"a.yaml", "password: null", "password"}, {"a.json", `{"password":null}`, "password"},
-		{"a.yml", "values: []", "list is empty"}, {"a.json", `{"values":[]}`, "list is empty"},
-		{"a.yaml", "values: [1, hello]", "item 2 is string"}, {"a.json", `{"values":[1,"hello"]}`, "item 2 is string"},
+		{"a.yaml", "password: null", "password"},
+		{"a.json", `{"password":null}`, "password"},
+		{"a.yml", "values: []", "list is empty"},
+		{"a.json", `{"values":[]}`, "list is empty"},
+		{"a.yaml", "values: [1, hello]", "item 2 is string"},
+		{"a.json", `{"values":[1,"hello"]}`, "item 2 is string"},
 		{"a.yaml", "values: [{a: 1}, {b: 2}]", "incompatible"},
 		{"a.yaml", "values: [a, null]", "values[2]"},
 		{"a.yaml", "values: [[1]]", "nested lists"},
-		{"a.yaml", "x: 1\nx: 2", "duplicate"}, {"a.json", `{"x":1,"x":2}`, "duplicate"},
-		{"a.yaml", "x: &x [1]\ny: *x", "syntax"}, {"a.yaml", "x: {<<: {a: 1}}", "syntax"},
-		{"a.yaml", "x: .nan", "finite"}, {"a.json", `{"x":1e999}`, "finite"},
-		{"a.yaml", "x: 18446744073709551616", "64-bit"}, {"a.json", `{"x":18446744073709551616}`, "64-bit"},
+		{"a.yaml", "x: 1\nx: 2", "duplicate"},
+		{"a.json", `{"x":1,"x":2}`, "duplicate"},
+		{"a.yaml", "x: &x [1]\ny: *x", "syntax"},
+		{"a.yaml", "x: {<<: {a: 1}}", "syntax"},
+		{"a.yaml", "x: .nan", "finite"},
+		{"a.json", `{"x":1e999}`, "finite"},
+		{"a.yaml", "x: 18446744073709551616", "64-bit"},
+		{"a.json", `{"x":18446744073709551616}`, "64-bit"},
 		{"a.yaml", "x: -9223372036854775809", "64-bit"},
-		{"a.yaml", "[1, 2]", "root"}, {"a.yaml", "x: [", "syntax"},
+		{"a.yaml", "[1, 2]", "root"},
+		{"a.yaml", "x: [", "syntax"},
 		{"a.toml", "x = 1", "extension"},
 	} {
 		t.Run(tc.name+tc.want, func(t *testing.T) {
@@ -111,7 +119,7 @@ func TestConfig(t *testing.T) {
  if c.Server.Port!=8080||c.Server.Timeout!="30s"||c.Max!=9223372036854775807||len(c.Backends)!=2||c.Backends[1].Port!=2{t.Fatal("defaults lost")}
 }`
 			for path, b := range map[string][]byte{"go.mod": []byte(mod), "config_gen.go": code, "config_test.go": []byte(testCode)} {
-				if err := os.WriteFile(filepath.Join(dir, path), b, 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, path), b, 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -140,6 +148,7 @@ func FuzzFromConfig(f *testing.F) {
 		}
 	})
 }
+
 func BenchmarkFromConfig(b *testing.B) {
 	input := []byte("server: {host: localhost, port: 8080, timeout: 30s}\nlogging: {level: info}")
 	b.ReportAllocs()
