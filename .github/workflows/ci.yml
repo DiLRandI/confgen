@@ -7,6 +7,10 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.26.x', 'stable']
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -15,7 +19,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7.0.0
         with:
-          go-version-file: go.mod
+          go-version: ${{ matrix.go }}
           cache: true
           cache-dependency-path: |
             go.sum
@@ -27,6 +31,11 @@ jobs:
           go mod tidy
           go -C examples mod tidy
           git diff --exit-code -- go.mod go.sum examples/go.mod examples/go.sum
+      - name: Test this revision with the consumer module
+        run: |
+          task_workspace=$(mktemp -d)
+          (cd "$task_workspace" && go work init "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/examples")
+          echo "GOWORK=$task_workspace/go.work" >> "$GITHUB_ENV"
       - name: Check generated examples
         run: |
           go -C examples generate ./...

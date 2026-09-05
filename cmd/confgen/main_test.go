@@ -38,3 +38,12 @@ func TestCLI(t *testing.T) {
 		t.Fatal("failed schema replaced output")
 	}
 }
+
+func TestHelp(t *testing.T) {
+	for _, args := range [][]string{{"-h"}, {"generate", "-h"}} {
+		var b bytes.Buffer
+		if run(args, &b) != 0 || !strings.Contains(b.String(), "confgen generate") || !strings.Contains(b.String(), "-schema") {
+			t.Fatal(b.String())
+		}
+	}
+}
