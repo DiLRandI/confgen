@@ -16,6 +16,19 @@ func WriteFiles(outputs map[string][]byte) error {
 	return writeFiles(outputs, os.Rename)
 }
 
+// CreateFiles writes new files without replacing any existing destination,
+// including one created concurrently. Completed files are rolled back on error.
+func CreateFiles(outputs map[string][]byte) error {
+	for p := range outputs {
+		if _, err := os.Lstat(p); err == nil {
+			return fmt.Errorf("destination already exists: %s", p)
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return writeFiles(outputs, func(from, to string) error { return os.Link(from, to) })
+}
+
 func writeFiles(outputs map[string][]byte, rename func(string, string) error) error {
 	type staged struct {
 		path, temp, backup string

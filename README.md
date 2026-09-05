@@ -12,6 +12,20 @@ of maintaining them by hand, then load configuration with one call.
 
 ## Quick start
 
+Already have `config.yaml` or `config.json`? After installing, bootstrap your
+configuration package without rewriting the file by hand:
+
+```sh
+confgen init --from config.yaml --package appconfig \
+  --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
+```
+
+This creates a starter schema and Go types. Values become defaults; add required
+fields, secrets, validation, and descriptions as needed. `init` never replaces
+existing files. See the [migration guide](docs/migration.md).
+
+For a new project or an explicit contract, start with a schema below.
+
 ### 1. Install
 
 Inside your application's Go module:
@@ -94,6 +108,7 @@ Objects merge by field; lists and maps replace as a whole.
 - YAML and JSON files, readers, and environment variables.
 - Defaults, required fields, validation, and secret-safe diagnostics.
 - Deterministic Go generation and optional configuration templates.
+- Editable schema bootstrapping from existing YAML or JSON.
 
 ## Schema overview
 

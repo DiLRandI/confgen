@@ -15,21 +15,27 @@ import (
 	"path/filepath"
 
 	"github.com/DiLRandI/confgen/generator"
+	"github.com/DiLRandI/confgen/infer"
 	"github.com/DiLRandI/confgen/schema"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stderr)) }
 func run(args []string, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "init" {
+		return runInit(args[1:], stderr)
+	}
 	if len(args) > 0 && args[0] == "generate" {
 		args = args[1:]
 	}
 	fs := flag.NewFlagSet("confgen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Generate type-safe Go configuration from a YAML schema.\n\nUsage: confgen generate -schema config.schema.yaml -out config_gen.go\n\nOptions:")
+		fmt.Fprintln(stderr, "Generate type-safe Go configuration.\n\nUsage:\n  confgen init --from config.yaml --package appconfig\n  confgen generate --schema config.schema.yaml --out config_gen.go\n  confgen generate --from config.json --package appconfig\n\nOptions:")
 		fs.PrintDefaults()
 	}
 	input := fs.String("schema", "", "required YAML schema path")
+	from := fs.String("from", "", "infer directly from YAML or JSON without writing a schema")
+	pkg := fs.String("package", "appconfig", "Go package for inferred configuration")
 	out := fs.String("out", "config_gen.go", "generated Go output")
 	exYAML := fs.String("example-yaml", "", "optional YAML example output")
 	exEnv := fs.String("example-env", "", "optional environment example output")
@@ -41,14 +47,22 @@ func run(args []string, stderr io.Writer) int {
 		return 2
 	}
 	fail := func(err error) int { fmt.Fprintln(stderr, "confgen:", err); return 1 }
-	if *input == "" || *out == "" || fs.NArg() != 0 {
-		return fail(fmt.Errorf("-schema and -out are required; positional arguments are unsupported"))
+	if (*input == "") == (*from == "") || *out == "" || fs.NArg() != 0 {
+		return fail(fmt.Errorf("choose exactly one of -schema or -from and a non-empty -out"))
+	}
+	if *from != "" {
+		*input = *from
 	}
 	data, err := os.ReadFile(*input)
 	if err != nil {
 		return fail(err)
 	}
-	m, err := schema.Compile(*input, data)
+	var m *schema.Model
+	if *from != "" {
+		m, err = infer.FromConfig(*input, data, infer.Options{Package: *pkg})
+	} else {
+		m, err = schema.Compile(*input, data)
+	}
 	if err != nil {
 		return fail(err)
 	}
@@ -76,7 +90,7 @@ func run(args []string, stderr io.Writer) int {
 		}
 		abs = filepath.Join(dir, filepath.Base(abs))
 		if abs == inputAbs {
-			return fmt.Errorf("output cannot overwrite schema")
+			return fmt.Errorf("output cannot overwrite input")
 		}
 		if _, ok := outputs[abs]; ok {
 			return fmt.Errorf("output paths must be distinct")

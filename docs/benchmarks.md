@@ -41,6 +41,24 @@ as smoke checks without enforcing timing thresholds on shared runners.
 
 ## Reproduce
 
+### Existing-config onboarding
+
+Measured on 2026-09-05 at `a79b175`, with Go 1.27.0 on the same machine:
+
+| Benchmark | Median ns/op | Time range ns/op | Median B/op | Allocs/op |
+| --- | ---: | ---: | ---: | ---: |
+| `FromConfig` | 228,429 | 225,902-230,848 | 509,935 | 2,370 |
+
+This measures YAML parsing, inference, schema rendering, and validation for four
+leaf fields in two objects. It excludes Go generation and file writes. These are
+three serial 500ms samples, not a runtime loading benchmark.
+
+```sh
+go test ./infer -run '^$' -bench BenchmarkFromConfig -benchmem -benchtime=500ms -count=3
+```
+
+### Runtime and schema generation
+
 ```sh
 go version
 go test ./config ./schema ./generator -run '^$' -bench . -benchmem -benchtime=500ms -count=3
