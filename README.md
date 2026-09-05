@@ -2,6 +2,10 @@
 
 This package is the implementation contract for a small schema-first Go configuration library.
 
+Implementation has started. See the [documentation guide](docs/README.md),
+[verified progress](docs/progress.md), and [design decisions](docs/decisions.md).
+The application API below describes the target; it is not available yet.
+
 ## Product promise
 
 Define configuration once in `config.schema.yaml`, generate strongly typed Go code, and load values from ordered YAML, JSON, and environment sources with deterministic precedence.
