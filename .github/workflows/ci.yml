@@ -2,6 +2,9 @@ name: Go checks
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: go-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     timeout-minutes: 15
@@ -16,6 +19,26 @@ jobs:
           cache: true
       - name: Check formatting
         run: test -z "$(gofmt -l .)"
+      - name: Check module metadata
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+      - name: Check generated examples
+        run: |
+          go generate ./...
+          test -z "$(git status --porcelain -- examples)"
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
+      - name: Check 32-bit integer limits
+        env:
+          GOARCH: '386'
+          CGO_ENABLED: '0'
+        run: go test ./config ./schema ./internal/value
+      - name: Fuzz smoke checks
+        run: |
+          go test ./schema -run '^$' -fuzz '^FuzzCompile$' -fuzztime=5s -parallel=2
+          go test ./config -run '^$' -fuzz '^FuzzSources$' -fuzztime=5s -parallel=2
+          go test ./internal/value -run '^$' -fuzz '^FuzzScalarText$' -fuzztime=5s -parallel=2
+      - name: Benchmark smoke check
+        run: go test ./config ./schema ./generator -run '^$' -bench . -benchmem -benchtime=100ms
