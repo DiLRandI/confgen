@@ -77,6 +77,18 @@ func TestEmptyObjectNull(t *testing.T) {
 	}
 }
 
+func TestTimestampConversionAfterMerge(t *testing.T) {
+	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "name", Path: "name", Kind: config.KindString, GoIndex: []int{0}, EnvName: "NAME"}}}
+	low := reader("name: 2026-09-05")
+	if _, err := config.Load[struct{ Name string }](context.Background(), d, low); err == nil {
+		t.Fatal("timestamp accepted as string")
+	}
+	c, err := config.Load[struct{ Name string }](context.Background(), d, low, environment(map[string]string{"NAME": "overridden"}))
+	if err != nil || c.Name != "overridden" {
+		t.Fatalf("overridden timestamp rejected: %+v %v", c, err)
+	}
+}
+
 func TestPresencePrecedenceAndCollections(t *testing.T) {
 	d := descriptor()
 	low := reader("server: {host: original, port: wrong}\ndebug: true\nname: previous\nlist: [a, b]\nlabels: {a: one, b: two}")

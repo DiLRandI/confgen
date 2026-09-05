@@ -101,7 +101,7 @@ func yamlNode(n *yaml.Node, depth int) (*Node, error) {
 		out.Value = raw
 	case yaml.ScalarNode:
 		switch n.Tag {
-		case "!!str", "!!bool", "!!int", "!!float", "!!null":
+		case "!!str", "!!bool", "!!int", "!!float", "!!null", "!!timestamp":
 			if e := n.Decode(&out.Value); e != nil {
 				return fail("syntax")
 			}
