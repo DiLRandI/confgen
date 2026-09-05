@@ -65,6 +65,17 @@ func TestInvalidObjectShape(t *testing.T) {
 	issue(t, err, config.IssueType)
 }
 
+func TestEmptyObjectNull(t *testing.T) {
+	type cfg struct{ Empty struct{} }
+	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "empty", Path: "empty", Kind: config.KindObject, GoIndex: []int{0}}}}
+	if c, err := config.Load[cfg](context.Background(), d, reader("empty: null")); c != nil || err == nil {
+		t.Fatalf("accepted null empty object: %+v %v", c, err)
+	}
+	if _, err := config.Load[cfg](context.Background(), d, reader("empty: null"), reader("empty: {}")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPresencePrecedenceAndCollections(t *testing.T) {
 	d := descriptor()
 	low := reader("server: {host: original, port: wrong}\ndebug: true\nname: previous\nlist: [a, b]\nlabels: {a: one, b: two}")

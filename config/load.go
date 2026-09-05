@@ -37,7 +37,7 @@ func Load[T any](ctx context.Context, d Descriptor, sources ...Source) (*T, erro
 	walk = func(fields []FieldDescriptor, parent []int) error {
 		for _, f := range fields {
 			index := append(append([]int{}, parent...), f.GoIndex...)
-			if f.Kind == KindObject {
+			if f.Kind == KindObject && len(f.Children) > 0 {
 				if err := walk(f.Children, index); err != nil {
 					return err
 				}

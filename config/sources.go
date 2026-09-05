@@ -108,13 +108,13 @@ func parseSource(data []byte, format Format, source, file string, d *Descriptor)
 			if !ok {
 				continue
 			}
-			if f.Kind == KindObject && n.Fields != nil {
+			if f.Kind == KindObject && len(f.Children) > 0 && n.Fields != nil {
 				flatten(f.Children, n)
-			} else if f.Kind == KindObject {
+			} else if f.Kind == KindObject && len(f.Children) > 0 {
 				var spread func([]FieldDescriptor)
 				spread = func(children []FieldDescriptor) {
 					for _, c := range children {
-						if c.Kind == KindObject {
+						if c.Kind == KindObject && len(c.Children) > 0 {
 							spread(c.Children)
 						} else {
 							// An invalid container is not a value for any child type.
