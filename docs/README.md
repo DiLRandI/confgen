@@ -12,5 +12,6 @@ the [test plan](../TEST_PLAN.md) for release requirements. The
 [Design decisions](decisions.md) records choices the specifications leave open.
 
 The [master specification](../MASTER_SPEC.md) is a compact reference.
+The [schema parser guide](schema-parser.md) documents the implemented API.
 [Coding instructions](../CODEX_INSTRUCTIONS.md) apply to implementation work.
 The [examples](../examples/) are specification inputs, not yet a runnable app.

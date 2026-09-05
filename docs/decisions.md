@@ -8,8 +8,10 @@ Do not invent a GitHub organization. Update imports before publishing.
 
 ## Go version
 
-The initial module targets Go 1.23 language features. Local checks currently
-run on Go 1.27. CI uses the version declared in go.mod.
+The module targets Go 1.27.1, the latest stable release in the official Go
+download listing checked on 2026-09-05, as requested by the owner. CI uses the
+version declared in go.mod. Go's automatic toolchain selection downloads it
+when the installed toolchain is older.
 
 ## Parsing boundary
 
