@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -15,6 +19,8 @@ import (
 type Node struct {
 	Value        any
 	Fields       map[string]*Node
+	Order        []string
+	NumberText   string
 	Items        []*Node
 	Line, Column int
 }
@@ -26,6 +32,18 @@ type Error struct {
 }
 
 func (e *Error) Error() string { return "invalid document: " + e.Kind }
+
+// ParseConfig selects a parser by filename extension without reading a file.
+func ParseConfig(name string, data []byte) (*Node, error) {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".yaml", ".yml":
+		return Parse(data, false)
+	case ".json":
+		return Parse(data, true)
+	default:
+		return nil, fmt.Errorf("unsupported config extension; use .yaml, .yml, or .json")
+	}
+}
 
 // Parse reads a single YAML or JSON document and rejects duplicate mapping keys.
 // YAML aliases, merge keys, and non-string keys are unsupported.
@@ -82,10 +100,12 @@ func yamlNode(n *yaml.Node, depth int) (*Node, error) {
 				return nil, e
 			}
 			out.Fields[k.Value] = v
+			out.Order = append(out.Order, k.Value)
 			raw[k.Value] = v.Value
 		}
 		out.Value = raw
 	case yaml.SequenceNode:
+		out.Items = make([]*Node, 0, len(n.Content))
 		if n.Tag != "!!seq" {
 			return fail("syntax")
 		}
@@ -100,6 +120,9 @@ func yamlNode(n *yaml.Node, depth int) (*Node, error) {
 		}
 		out.Value = raw
 	case yaml.ScalarNode:
+		if n.Tag == "!!int" || n.Tag == "!!float" {
+			out.NumberText = n.Value
+		}
 		switch n.Tag {
 		case "!!str", "!!bool", "!!int", "!!float", "!!null", "!!timestamp":
 			if e := n.Decode(&out.Value); e != nil {
@@ -147,6 +170,7 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 					return nil, e
 				}
 				out.Fields[s] = v
+				out.Order = append(out.Order, s)
 				raw[s] = v.Value
 			}
 			if end, e := d.Token(); e != nil || end != json.Delim('}') {
@@ -154,6 +178,7 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 			}
 			out.Value = raw
 		case '[':
+			out.Items = []*Node{}
 			raw := []any{}
 			for d.More() {
 				v, e := jsonNode(d, data, depth+1)
@@ -200,6 +225,51 @@ func (n *Node) Keys() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// OrderedKeys preserves declaration order, with a sorted fallback for adapters.
+func (n *Node) OrderedKeys() []string {
+	if len(n.Order) == len(n.Fields) {
+		return n.Order
+	}
+	return n.Keys()
+}
+
+// Scalar normalizes numeric representations for build-time inference without
+// changing Value, whose original encoding is needed by runtime conversion.
+func (n *Node) Scalar() (any, error) {
+	switch x := n.Value.(type) {
+	case int:
+		return int64(x), nil
+	case uint:
+		return uint64(x), nil
+	case json.Number:
+		s := string(x)
+		if !strings.ContainsAny(s, ".eE") {
+			if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+				return v, nil
+			}
+			if v, err := strconv.ParseUint(s, 10, 64); err == nil {
+				return v, nil
+			}
+			return nil, fmt.Errorf("integer is outside the supported 64-bit range")
+		}
+		v, err := strconv.ParseFloat(s, 64)
+		if err != nil || math.IsInf(v, 0) || math.IsNaN(v) {
+			return nil, fmt.Errorf("float must be finite and fit float64")
+		}
+		return v, nil
+	case float64:
+		if math.IsInf(x, 0) || math.IsNaN(x) {
+			return nil, fmt.Errorf("float must be finite")
+		}
+		if n.NumberText != "" && !strings.ContainsAny(n.NumberText, ".eE") {
+			return nil, fmt.Errorf("integer is outside the supported 64-bit range")
+		}
+		return x, nil
+	default:
+		return x, nil
+	}
 }
 
 // String returns only structural information, never raw values.

@@ -180,6 +180,9 @@ func literal(v any) string {
 	case bool:
 		return strconv.FormatBool(x)
 	case int:
+		if x < -1<<31 || x > 1<<31-1 {
+			return fmt.Sprintf("int64(%d)", x)
+		}
 		return fmt.Sprintf("int(%d)", x)
 	case int64:
 		return fmt.Sprintf("int64(%d)", x)
