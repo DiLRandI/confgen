@@ -14,7 +14,8 @@ GOARCH=386 CGO_ENABLED=0 go test ./config ./schema ./internal/value
 go test ./schema -run '^$' -fuzz '^FuzzCompile$' -fuzztime=5s -parallel=2
 go test ./config -run '^$' -fuzz '^FuzzSources$' -fuzztime=5s -parallel=2
 go test ./internal/value -run '^$' -fuzz '^FuzzScalarText$' -fuzztime=5s -parallel=2
-go test ./config ./schema ./generator -run '^$' -bench . -benchmem
+go test ./infer -run '^$' -fuzz '^FuzzFromConfig$' -fuzztime=5s -parallel=2
+go test ./config ./schema ./generator ./infer -run '^$' -bench . -benchmem
 ```
 
 Generated-consumer tests compile and run an independent module. Golden examples
@@ -30,3 +31,20 @@ Suggested topics: `golang`, `go`, `configuration`, `code-generation`, `yaml`,
 
 Enable private vulnerability reporting. CI and Go Reference badges are useful;
 add a release badge after tagging a release. These settings remain owner-controlled.
+
+## Input adapters
+
+`internal/document` owns format selection and parsing. Nodes retain ordered object
+fields, array items, source positions, and scalar representations. `Scalar`
+normalizes numeric representations for inference while keeping runtime raw values
+unchanged. A future TOML parser should produce these same nodes; inference and Go
+generation must not need format-specific branches.
+
+`infer.FromConfig` builds the existing `schema.Model`, renders it with `schema.Render`,
+and runs `schema.Compile` for validation. The generator consumes that same model
+for explicit and inferred schemas. No parallel contract model is introduced.
+
+A future dotenv adapter should provide strings, even for values such as `8080`
+or `true`. `TestNormalizedTextAdapter` locks down that behavior. `TestNormalizedArrayAdapter`
+checks the parser-independent array boundary. TOML, dotenv, and sparse override
+files are deferred; users edit the generated full schema today.

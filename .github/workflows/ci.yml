@@ -61,5 +61,6 @@ jobs:
           go test ./schema -run '^$' -fuzz '^FuzzCompile$' -fuzztime=5s -parallel=2
           go test ./config -run '^$' -fuzz '^FuzzSources$' -fuzztime=5s -parallel=2
           go test ./internal/value -run '^$' -fuzz '^FuzzScalarText$' -fuzztime=5s -parallel=2
+          go test ./infer -run '^$' -fuzz '^FuzzFromConfig$' -fuzztime=5s -parallel=2
       - name: Benchmark smoke check
-        run: go test ./config ./schema ./generator -run '^$' -bench . -benchmem -benchtime=100ms
+        run: go test ./config ./schema ./generator ./infer -run '^$' -bench . -benchmem -benchtime=100ms
