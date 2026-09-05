@@ -83,7 +83,7 @@ confgen generate --from config.json --package appconfig --out appconfig/config_g
 Add `--copy-defaults` to this command when the input values should become
 defaults in the generated contract.
 
-Use `init` when you want an editable contract. Defaults for `init` outputs are
-`config.schema.yaml` and `config_gen.go` in the current directory; pass explicit
-paths when your configuration package is elsewhere. There is no overwrite flag;
-use new destinations when trying another inference.
+Use `init` when you want an editable contract. By default it writes
+`config.schema.yaml` and `config_gen.go` under the package directory, which is
+`appconfig` unless you pass `--package`. Pass explicit paths when needed. There
+is no overwrite flag; use new destinations when trying another inference.
