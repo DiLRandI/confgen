@@ -51,6 +51,25 @@ func TestGoldenAndDeterminism(t *testing.T) {
 	}
 }
 
+func TestFieldDocumentation(t *testing.T) {
+	m, err := schema.Compile("test", []byte("version: 1\npackage: app\nfields:\n  host: {type: string, description: Address the HTTP server binds to.}\n  debug: {type: bool}\n  port: {type: int, description: Port selects the listener.}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := generator.Generate(m, generator.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"// Host is the address the HTTP server binds to.", "// Port selects the listener."} {
+		if !bytes.Contains(b, []byte(want)) {
+			t.Fatalf("missing %q", want)
+		}
+	}
+	if bytes.Contains(b, []byte("// Debug")) {
+		t.Fatal("undocumented field acquired filler documentation")
+	}
+}
+
 func TestCompileGeneratedModule(t *testing.T) {
 	b, e := os.ReadFile("testdata/all.schema.yaml")
 	if e != nil {
@@ -69,7 +88,7 @@ func TestCompileGeneratedModule(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	mod := "module generatedtest\n\ngo 1.27.1\n\nrequire github.com/DiLRandI/confgen v0.0.0\nreplace github.com/DiLRandI/confgen => " + strconvQuote(root) + "\n"
+	mod := "module generatedtest\n\ngo 1.26.0\n\nrequire github.com/DiLRandI/confgen v0.0.0\nreplace github.com/DiLRandI/confgen => " + strconvQuote(root) + "\n"
 	consumer, e := os.ReadFile("testdata/consumer_test.go.txt")
 	if e != nil {
 		t.Fatal(e)

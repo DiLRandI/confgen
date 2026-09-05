@@ -102,7 +102,7 @@ func writeFiles(outputs map[string][]byte, rename func(string, string) error) er
 }
 
 func stage(dir string, data []byte, mode os.FileMode) (string, error) {
-	f, e := os.CreateTemp(dir, ".configgen-*")
+	f, e := os.CreateTemp(dir, ".confgen-*")
 	if e != nil {
 		return "", e
 	}

@@ -1,8 +1,8 @@
-// Command configgen generates typed Go configuration from a YAML schema.
+// Command confgen generates typed Go configuration from a YAML schema.
 //
 // Usage:
 //
-//	configgen -schema config.schema.yaml -out config_gen.go
+//	confgen -schema config.schema.yaml -out config_gen.go
 //
 // Optional -example-yaml and -example-env flags write configuration templates.
 package main
@@ -20,8 +20,15 @@ import (
 
 func main() { os.Exit(run(os.Args[1:], os.Stderr)) }
 func run(args []string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("configgen", flag.ContinueOnError)
+	if len(args) > 0 && args[0] == "generate" {
+		args = args[1:]
+	}
+	fs := flag.NewFlagSet("confgen", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Generate type-safe Go configuration from a YAML schema.\n\nUsage: confgen generate -schema config.schema.yaml -out config_gen.go\n\nOptions:")
+		fs.PrintDefaults()
+	}
 	input := fs.String("schema", "", "required YAML schema path")
 	out := fs.String("out", "config_gen.go", "generated Go output")
 	exYAML := fs.String("example-yaml", "", "optional YAML example output")
@@ -33,7 +40,7 @@ func run(args []string, stderr io.Writer) int {
 		}
 		return 2
 	}
-	fail := func(err error) int { fmt.Fprintln(stderr, "configgen:", err); return 1 }
+	fail := func(err error) int { fmt.Fprintln(stderr, "confgen:", err); return 1 }
 	if *input == "" || *out == "" || fs.NArg() != 0 {
 		return fail(fmt.Errorf("-schema and -out are required; positional arguments are unsupported"))
 	}
