@@ -2,31 +2,27 @@ package schema_test
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/DiLRandI/confgen/schema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompileExample(t *testing.T) {
+	t.Parallel()
 	b, e := os.ReadFile("../examples/appconfig/config.schema.yaml")
-	if e != nil {
-		t.Fatal(e)
-	}
+	require.NoError(t, e)
 	m, e := schema.Compile("example", b)
-	if e != nil {
-		t.Fatal(e)
-	}
+	require.NoError(t, e)
 	f := m.Descriptor.Fields[0].Children[1]
-	if f.GoName != "Port" || f.EnvName != "SHOP_SERVER_PORT" || !f.HasDefault {
-		t.Fatalf("%+v", f)
-	}
-	if m.Descriptor.Fields[1].Children[0].EnvName != "DATABASE_URL" {
-		t.Fatal("explicit env lost")
-	}
+	require.Equal(t, "Port", f.GoName, "%+v", f)
+	require.Equal(t, "SHOP_SERVER_PORT", f.EnvName, "%+v", f)
+	require.True(t, f.HasDefault, "%+v", f)
+	require.Equal(t, "DATABASE_URL", m.Descriptor.Fields[1].Children[0].EnvName, "explicit env lost")
 }
 
 func TestValidation(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, field string
 		valid       bool
@@ -76,15 +72,19 @@ func TestValidation(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
 			_, e := schema.Compile("test", []byte("version: 1\npackage: app\nfields:\n  field: {"+c.field+"}\n"))
-			if (e == nil) != c.valid {
-				t.Fatalf("valid=%v err=%v", c.valid, e)
+			if c.valid {
+				require.NoError(t, e)
+			} else {
+				require.Error(t, e)
 			}
 		})
 	}
 }
 
 func TestRootAndCollisions(t *testing.T) {
+	t.Parallel()
 	for _, input := range []string{
 		"version: 2\npackage: app\nfields: {}",
 		"version: 1\npackage: for\nfields: {}",
@@ -96,25 +96,28 @@ func TestRootAndCollisions(t *testing.T) {
 		"version: 1\npackage: app\nfields: {a_b: {type: string}, a: {type: object, fields: {b: {type: string}}}}",
 		"version: 1\npackage: app\nname: AConfig\nfields: {a: {type: object, fields: {}}}",
 	} {
-		if _, e := schema.Compile("test", []byte(input)); e == nil {
-			t.Errorf("accepted %s", input)
+		{
+			_, e := schema.Compile("test", []byte(input))
+			require.Error(t, e, "accepted %s", input)
 		}
 	}
 }
 
 func TestGoName(t *testing.T) {
+	t.Parallel()
 	for k, w := range map[string]string{"api_url": "APIURL", "http_port": "HTTPPort", "database_id": "DatabaseID", "tls_enabled": "TLSEnabled", "server_port": "ServerPort"} {
-		if g := schema.GoName(k); g != w {
-			t.Errorf("%s: %s", k, g)
+		{
+			g := schema.GoName(k)
+			require.Equal(t, w, g, "%s: %s", k, g)
 		}
 	}
 }
 
 func TestSecretDefaultDiagnostic(t *testing.T) {
+	t.Parallel()
 	_, e := schema.Compile("secret", []byte("version: 1\npackage: app\nfields: {password: {type: duration, secret: true, default: sentinel-secret}}"))
-	if e == nil || strings.Contains(e.Error(), "sentinel-secret") {
-		t.Fatalf("%v", e)
-	}
+	require.Error(t, e, "%v", e)
+	require.NotContains(t, e.Error(), "sentinel-secret", "%v", e)
 }
 
 func FuzzCompile(f *testing.F) {

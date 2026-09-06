@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/internal/document"
 )
 
@@ -22,10 +23,21 @@ const (
 type fileSource struct {
 	path     string
 	optional bool
+	limit    input.Limit
 }
 
 // File reads a required .yaml, .yml, or .json file on each load.
 func File(path string) Source { return fileSource{path: path} }
+
+// FileWithLimit reads a required file with a per-document byte budget.
+func FileWithLimit(path string, limit input.Limit) Source {
+	return fileSource{path: path, limit: limit}
+}
+
+// OptionalFileWithLimit ignores missing files and bounds every successful read.
+func OptionalFileWithLimit(path string, limit input.Limit) Source {
+	return fileSource{path: path, optional: true, limit: limit}
+}
 
 // OptionalFile ignores only missing files. All other read errors remain fatal.
 func OptionalFile(path string) Source { return fileSource{path: path, optional: true} }
@@ -43,10 +55,13 @@ func (s fileSource) Load(ctx context.Context, d *Descriptor) (Document, error) {
 	default:
 		return Document{}, sourceError(IssueSource, s.Name(), "unsupported file extension", nil)
 	}
-	b, err := os.ReadFile(s.path)
+	b, err := s.limit.ReadFile(s.path)
 	if err != nil {
 		if s.optional && errors.Is(err, os.ErrNotExist) {
 			return Document{}, nil
+		}
+		if size, ok := errors.AsType[*input.SizeError](err); ok {
+			return Document{}, sourceError(IssueSource, s.Name(), size.Error(), size)
 		}
 		return Document{}, sourceError(IssueSource, s.Name(), "cannot read file", err)
 	}
@@ -67,11 +82,17 @@ type readerSource struct {
 // same bytes. Read failures are reported at Load time. A blocking reader cannot
 // be interrupted by a later LoadContext cancellation.
 func Reader(name string, r io.Reader, format Format) Source {
+	return ReaderWithLimit(name, r, format, input.DefaultLimit)
+}
+
+// ReaderWithLimit uses a byte budget, consuming at most one extra byte to detect
+// oversized input. Failures are reported at Load time.
+func ReaderWithLimit(name string, r io.Reader, format Format, limit input.Limit) Source {
 	s := readerSource{name: name, format: format}
 	if r == nil {
 		s.err = errors.New("nil reader")
 	} else {
-		s.data, s.err = io.ReadAll(r)
+		s.data, s.err = limit.Read(r)
 	}
 	return s
 }
@@ -81,6 +102,9 @@ func (s readerSource) Load(ctx context.Context, d *Descriptor) (Document, error)
 		return Document{}, err
 	}
 	if s.err != nil {
+		if size, ok := errors.AsType[*input.SizeError](s.err); ok {
+			return Document{}, sourceError(IssueSource, s.Name(), size.Error(), size)
+		}
 		return Document{}, sourceError(IssueSource, s.Name(), "cannot read source", nil)
 	}
 	return parseSource(s.data, s.format, s.Name(), s.name, d)
@@ -190,7 +214,10 @@ func checkKnown(n *document.Node, f FieldDescriptor, path string, ignore bool, s
 // EnvOption customizes environment lookup.
 type (
 	EnvOption func(*envSource)
-	envSource struct{ lookup func(string) (string, bool) }
+	envSource struct {
+		lookup func(string) (string, bool)
+		limit  input.Limit
+	}
 )
 
 // WithLookupEnv supplies an isolated lookup function, for tests or embedding.
@@ -201,6 +228,11 @@ func WithLookupEnv(lookup func(string) (string, bool)) EnvOption {
 			s.lookup = lookup
 		}
 	}
+}
+
+// WithEnvInputLimit bounds each environment value before parsing or conversion.
+func WithEnvInputLimit(limit input.Limit) EnvOption {
+	return func(s *envSource) { s.limit = limit }
 }
 
 // Env looks up only descriptor-declared names at load time. Empty values count
@@ -233,6 +265,9 @@ func (s envSource) Load(ctx context.Context, d *Descriptor) (Document, error) {
 				continue
 			}
 			if v, ok := s.lookup(f.EnvName); ok {
+				if err := s.limit.Check([]byte(v)); err != nil {
+					return sourceError(IssueSource, "env:"+f.EnvName, err.Error(), err)
+				}
 				out.Values[f.Path] = RawValue{Value: v, Present: true, Text: true, Source: "env:" + f.EnvName}
 			}
 		}

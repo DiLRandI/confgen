@@ -49,3 +49,58 @@ or `true`. `TestNormalizedTextAdapter` locks down that behavior. `TestNormalized
 checks the parser-independent array boundary. Sparse overrides select types during
 inference; validation still uses the existing schema compiler. TOML and dotenv
 remain deferred. Other metadata belongs in the generated full schema.
+
+## Vulnerability checks
+
+Install the pinned [official Go vulnerability checker](https://go.dev/doc/security/vuln/)
+and scan reachable code before opening a pull request:
+
+```sh
+go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+govulncheck ./...
+```
+
+CI runs the same check and fails on reachable known vulnerabilities. The tool is
+installed separately and is not an application module dependency. Vulnerability
+data comes from the live Go vulnerability database.
+
+During v0.x, tests verify current generation against the current specification
+and runtime. Historical generated-code compatibility coverage is deferred until
+v1; regenerate consumers when upgrading.
+
+Actions are pinned to release commit SHAs with version comments. The existing
+GitHub Actions Dependabot configuration keeps update proposals enabled.
+
+For `main`, configure a GitHub ruleset requiring a pull request and the existing
+`test (1.26.x)` and `test (stable)` Go checks, blocking force pushes and branch
+deletion. Optionally require branches to be up-to-date before merge. Rulesets
+and private vulnerability reporting are manual repository settings.
+
+## Test conventions
+
+Use [Testify](https://github.com/stretchr/testify) assertions in ordinary tests:
+`require` for prerequisites and `assert` for independent results. Use named
+table subtests for related cases and `t.Parallel` for isolated tests. Tests
+that change process environment or working directory stay serial. Assertions
+in spawned goroutines must use `assert`, not `require`.
+
+Executable Go examples retain their `Output` checks. Benchmark timed loops
+retain standard error checks to avoid measuring assertion-library overhead.
+Fuzz targets retain their input guards and check valid-result invariants.
+
+`config.Source` is the application interface mocked by
+[Mockery](https://vektra.github.io/mockery/latest/). Its generated implementation
+lives in `config/mocks_test.go`, so mock dependencies are excluded from production
+builds. Keep real file/reader adapters in integration tests.
+
+Regenerate the mock from the repository root:
+
+```sh
+go install github.com/vektra/mockery/v3@v3.7.4
+mockery
+git diff --exit-code -- config/mocks_test.go
+```
+
+`.mockery.yml` selects only `config.Source`. CI repeats generation and checks
+for drift. Mockery is installed separately; Testify v1.12.1 is a test dependency
+in the Go module. No production package imports either library.

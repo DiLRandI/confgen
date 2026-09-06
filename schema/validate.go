@@ -10,8 +10,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/internal/value"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Model is a normalized, validated schema. Treat it as immutable. Descriptors
@@ -26,7 +27,12 @@ type Model struct {
 
 // Compile parses and semantically validates one schema document.
 func Compile(filename string, data []byte) (*Model, error) {
-	s, err := Parse(filename, data)
+	return CompileWithLimit(filename, data, input.DefaultLimit)
+}
+
+// CompileWithLimit parses and validates a schema with a per-document byte budget.
+func CompileWithLimit(filename string, data []byte, limit input.Limit) (*Model, error) {
+	s, err := ParseWithLimit(filename, data, limit)
 	if err != nil {
 		return nil, err
 	}

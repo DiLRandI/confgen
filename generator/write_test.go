@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenameFailureRollback(t *testing.T) {
@@ -13,9 +15,7 @@ func TestRenameFailureRollback(t *testing.T) {
 			dir := t.TempDir()
 			a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
 			for _, p := range []string{a, b} {
-				if e := os.WriteFile(p, []byte("original"), 0o600); e != nil {
-					t.Fatal(e)
-				}
+				require.NoError(t, os.WriteFile(p, []byte("original"), 0o600))
 			}
 			calls := 0
 			failure := errors.New("injected rename failure")
@@ -26,18 +26,12 @@ func TestRenameFailureRollback(t *testing.T) {
 				}
 				return os.Rename(from, to)
 			})
-			if !errors.Is(err, failure) {
-				t.Fatal(err)
-			}
+			require.ErrorIs(t, err, failure, err)
 			data, _ := os.ReadFile(b)
-			if string(data) != "original" {
-				t.Fatal("failed destination modified")
-			}
+			require.Equal(t, "original", string(data), "failed destination modified")
 			if !rollbackFails {
 				data, _ := os.ReadFile(a)
-				if string(data) != "original" {
-					t.Fatal("first output not restored")
-				}
+				require.Equal(t, "original", string(data), "first output not restored")
 				return
 			}
 			entries, _ := os.ReadDir(dir)
@@ -51,9 +45,7 @@ func TestRenameFailureRollback(t *testing.T) {
 					found = true
 				}
 			}
-			if !found {
-				t.Fatal("rollback failed and original backup was deleted")
-			}
+			require.True(t, found, "rollback failed and original backup was deleted")
 		})
 	}
 }
@@ -62,24 +54,17 @@ func TestCreateFilesDoesNotOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	existing := filepath.Join(dir, "existing")
 	fresh := filepath.Join(dir, "fresh")
-	if err := os.WriteFile(existing, []byte("original"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := CreateFiles(map[string][]byte{existing: []byte("replace"), fresh: []byte("fresh")}); err == nil {
-		t.Fatal("existing file accepted")
-	}
+	require.NoError(t, os.WriteFile(existing, []byte("original"), 0o600))
+	require.Error(t, CreateFiles(map[string][]byte{existing: []byte("replace"), fresh: []byte("fresh")}), "existing file accepted")
 	got, err := os.ReadFile(existing)
-	if err != nil || string(got) != "original" {
-		t.Fatal("original changed")
+	require.NoError(t, err, "original changed")
+	require.Equal(t, "original", string(got), "original changed")
+	{
+		_, err := os.Stat(fresh)
+		require.True(t, os.IsNotExist(err), "partial output")
 	}
-	if _, err := os.Stat(fresh); !os.IsNotExist(err) {
-		t.Fatal("partial output")
-	}
-	if err := CreateFiles(map[string][]byte{fresh: []byte("created")}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, CreateFiles(map[string][]byte{fresh: []byte("created")}))
 	got, err = os.ReadFile(fresh)
-	if err != nil || string(got) != "created" {
-		t.Fatal("new file not written")
-	}
+	require.NoError(t, err, "new file not written")
+	require.Equal(t, "created", string(got), "new file not written")
 }

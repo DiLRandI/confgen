@@ -14,10 +14,10 @@ jobs:
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -40,6 +40,15 @@ jobs:
         run: |
           go -C examples generate ./...
           test -z "$(git status --porcelain -- examples)"
+      - name: Check generated test mocks
+        run: |
+          go install github.com/vektra/mockery/v3@v3.7.4
+          mockery
+          git diff --exit-code -- config/mocks_test.go
+      - name: Check reachable vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          govulncheck ./...
       - run: go vet ./...
       - run: go -C examples vet ./...
       - run: go test ./...
@@ -63,4 +72,4 @@ jobs:
           go test ./internal/value -run '^$' -fuzz '^FuzzScalarText$' -fuzztime=5s -parallel=2
           go test ./infer -run '^$' -fuzz '^FuzzFromConfig$' -fuzztime=5s -parallel=2
       - name: Benchmark smoke check
-        run: go test ./config ./schema ./generator ./infer -run '^$' -bench . -benchmem -benchtime=100ms
+        run: go test ./config ./schema ./generator ./infer ./internal/document -run '^$' -bench . -benchmem -benchtime=100ms

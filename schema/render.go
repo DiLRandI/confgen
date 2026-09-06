@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/DiLRandI/confgen/config"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Render writes a contract as editable schema YAML in field order. The model

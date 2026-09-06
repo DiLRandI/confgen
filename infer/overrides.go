@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/internal/document"
 	"github.com/DiLRandI/confgen/internal/value"
 )
@@ -21,6 +22,14 @@ type TypeOverride struct {
 // ParseOverrides reads YAML containing a fields mapping of canonical dotted paths
 // to type overrides. It does not read files or accept other schema metadata.
 func ParseOverrides(name string, data []byte) (map[string]TypeOverride, error) {
+	return ParseOverridesWithLimit(name, data, input.DefaultLimit)
+}
+
+// ParseOverridesWithLimit checks a byte budget before parsing overrides.
+func ParseOverridesWithLimit(name string, data []byte, limit input.Limit) (map[string]TypeOverride, error) {
+	if err := limit.Check(data); err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
 	n, err := document.Parse(data, false)
 	if err != nil {
 		return nil, fmt.Errorf("%s: invalid overrides: %w", name, err)

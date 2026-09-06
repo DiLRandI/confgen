@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/DiLRandI/confgen/input"
+	"go.yaml.in/yaml/v3"
 )
 
 // Diagnostic describes an invalid schema without echoing schema values.
@@ -29,7 +30,15 @@ func (d *Diagnostic) Error() string {
 // and known properties. Call semantic validation before generating code.
 // Aliases and YAML merge keys are unsupported.
 func Parse(filename string, data []byte) (*Schema, error) {
+	return ParseWithLimit(filename, data, input.DefaultLimit)
+}
+
+// ParseWithLimit checks a document byte budget before parsing.
+func ParseWithLimit(filename string, data []byte, limit input.Limit) (*Schema, error) {
 	p := parser{filename: filename}
+	if err := limit.Check(data); err != nil {
+		return nil, p.fail(nil, "", err.Error())
+	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
 	if err := dec.Decode(&doc); err != nil {

@@ -1,40 +1,27 @@
 package schema_test
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
 	"github.com/DiLRandI/confgen/generator"
 	"github.com/DiLRandI/confgen/schema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderPreservesContract(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("../generator/testdata/all.schema.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	m, err := schema.Compile("all", data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	before, err := generator.Generate(m, generator.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	rendered, err := schema.Render(m)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	round, err := schema.Compile("rendered", rendered)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	after, err := generator.Generate(round, generator.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Fatal("schema rendering changed generated contract")
-	}
+	require.NoError(t, err)
+	require.Equal(t, before, after, "schema rendering changed generated contract")
 }

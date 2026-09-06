@@ -68,3 +68,21 @@ For comparisons, use the same machine and Go version, keep unrelated workloads
 idle, and collect more samples with `-count=10`. The benchmark sources are
 `config/benchmark_test.go`, `config/load_test.go`, `schema/example_test.go`, and
 `generator/generate_test.go`.
+
+### Large JSON documents and source positions
+
+```sh
+go test ./internal/document -run '^$' -bench JSON -benchmem -benchtime=100ms -count=3
+```
+
+`JSONLargeDocument` parses a 158,892-byte object with 10,000 fields.
+`JSONPositionLookupLargeDocument` builds the newline index and calculates one
+position per line at 1,000, 10,000, and 100,000 lines. Index construction is O(n);
+each position lookup is O(log lines), replacing the previous repeated prefix
+scan. This benchmark includes the index allocation and excludes input setup.
+
+On 2026-09-06, Go 1.27.0, linux/amd64, Intel i7-11800H, the three-run median
+for those position workloads was 25.5 us, 417.6 us, and 5.01 ms respectively.
+A 10x input increase took about 16.4x and 12.0x time, rather than quadratic
+100x growth. The parser median was 5.32 ms. These are local observations;
+CI runs the benchmarks without performance thresholds.
