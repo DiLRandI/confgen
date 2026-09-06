@@ -49,3 +49,17 @@ or `true`. `TestNormalizedTextAdapter` locks down that behavior. `TestNormalized
 checks the parser-independent array boundary. Sparse overrides select types during
 inference; validation still uses the existing schema compiler. TOML and dotenv
 remain deferred. Other metadata belongs in the generated full schema.
+
+## Vulnerability checks
+
+Install the pinned [official Go vulnerability checker](https://go.dev/doc/security/vuln/)
+and scan reachable code before opening a pull request:
+
+```sh
+go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+govulncheck ./...
+```
+
+CI runs the same check and fails on reachable known vulnerabilities. The tool is
+installed separately and is not an application module dependency. Vulnerability
+data comes from the live Go vulnerability database.
