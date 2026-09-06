@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestInitExternalKeys(t *testing.T) {
@@ -15,26 +17,17 @@ func TestInitExternalKeys(t *testing.T) {
 		t.Run(tc.ext, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			input := "config." + tc.ext
-			if err := os.WriteFile(input, []byte(tc.input), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, os.WriteFile(input, []byte(tc.input), 0o600))
 			var stderr bytes.Buffer
-			if run([]string{"init", "--from", input, "--package", "appconfig"}, &stderr) != 0 {
-				t.Fatal(stderr.String())
-			}
+			require.Equal(t, 0, run([]string{"init", "--from", input, "--package", "appconfig"}, &stderr), stderr.String())
 			b, err := os.ReadFile(filepath.Join("appconfig", "config_gen.go"))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			for _, key := range []string{`json:"server-port"`, `json:"databaseURL"`, `json:"logging.level"`} {
-				if !bytes.Contains(b, []byte(key)) {
-					t.Fatalf("missing %s", key)
-				}
+				require.Contains(t, string(b), string([]byte(key)), "missing %s", key)
 			}
 			unchanged, err := os.ReadFile(input)
-			if err != nil || string(unchanged) != tc.input {
-				t.Fatal("source changed", err)
-			}
+			require.NoError(t, err, "source changed", err)
+			require.Equal(t, tc.input, string(unchanged), "source changed", err)
 		})
 	}
 }

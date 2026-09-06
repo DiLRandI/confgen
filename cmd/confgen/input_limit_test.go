@@ -2,30 +2,23 @@ package main
 
 import (
 	"bytes"
-	"github.com/DiLRandI/confgen/input"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/DiLRandI/confgen/input"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCLIInputLimits(t *testing.T) {
 	dir := t.TempDir()
 	large := filepath.Join(dir, "large.yaml")
 	f, err := os.Create(large)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Truncate(int64(input.DefaultLimit) + 1); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, f.Truncate(int64(input.DefaultLimit)+1))
+	require.NoError(t, f.Close())
 	small := filepath.Join(dir, "small.yaml")
-	if err := os.WriteFile(small, []byte("value: hello\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(small, []byte("value: hello\n"), 0600))
 	for _, args := range [][]string{
 		{"generate", "--schema", large},
 		{"generate", "--from", large},
@@ -36,11 +29,14 @@ func TestCLIInputLimits(t *testing.T) {
 		var stderr bytes.Buffer
 		out := filepath.Join(dir, "config_gen.go")
 		args = append(args, "--out", out)
-		if code := run(args, &stderr); code != 1 || !strings.Contains(stderr.String(), "byte limit") {
-			t.Fatalf("%v: %d %s", args, code, &stderr)
+		{
+			code := run(args, &stderr)
+			require.Equal(t, 1, code, "%v: %d %s", args, code, &stderr)
+			require.Contains(t, stderr.String(), "byte limit", "%v: %d %s", args, code, &stderr)
 		}
-		if _, err := os.Stat(out); !os.IsNotExist(err) {
-			t.Fatalf("output created: %v", err)
+		{
+			_, err := os.Stat(out)
+			require.True(t, os.IsNotExist(err), "output created: %v", err)
 		}
 	}
 }
