@@ -49,9 +49,10 @@ func ParseConfig(name string, data []byte) (*Node, error) {
 // YAML aliases, merge keys, and non-string keys are unsupported.
 func Parse(data []byte, jsonFormat bool) (*Node, error) {
 	if jsonFormat {
+		positions := newPositions(data)
 		d := json.NewDecoder(bytes.NewReader(data))
 		d.UseNumber()
-		n, e := jsonNode(d, data, 0)
+		n, e := jsonNode(d, data, positions, 0)
 		if e != nil {
 			return nil, e
 		}
@@ -137,8 +138,8 @@ func yamlNode(n *yaml.Node, depth int) (*Node, error) {
 	return out, nil
 }
 
-func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
-	line, col := position(data, int(d.InputOffset()))
+func jsonNode(d *json.Decoder, data []byte, positions positions, depth int) (*Node, error) {
+	line, col := positions.position(int(d.InputOffset()))
 	fail := func(kind string) (*Node, error) { return nil, &Error{Kind: kind, Line: line, Column: col} }
 	if depth > 256 {
 		return fail("syntax")
@@ -154,6 +155,7 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 			out.Fields = map[string]*Node{}
 			raw := map[string]any{}
 			for d.More() {
+				keyOffset := int(d.InputOffset())
 				key, e := d.Token()
 				if e != nil {
 					return fail("syntax")
@@ -163,9 +165,10 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 					return fail("syntax")
 				}
 				if _, ok := out.Fields[s]; ok {
-					return fail("duplicate")
+					line, col := positions.position(jsonKeyOffset(data, keyOffset))
+					return nil, &Error{Kind: "duplicate", Line: line, Column: col}
 				}
-				v, e := jsonNode(d, data, depth+1)
+				v, e := jsonNode(d, data, positions, depth+1)
 				if e != nil {
 					return nil, e
 				}
@@ -181,7 +184,7 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 			out.Items = []*Node{}
 			raw := []any{}
 			for d.More() {
-				v, e := jsonNode(d, data, depth+1)
+				v, e := jsonNode(d, data, positions, depth+1)
 				if e != nil {
 					return nil, e
 				}
@@ -201,20 +204,49 @@ func jsonNode(d *json.Decoder, data []byte, depth int) (*Node, error) {
 	return out, nil
 }
 
-func position(data []byte, offset int) (int, int) {
-	line, col := 1, 1
+type positions struct {
+	newlines []int
+	length   int
+}
+
+func newPositions(data []byte) positions {
+	p := positions{newlines: make([]int, 0, bytes.Count(data, []byte{'\n'})), length: len(data)}
 	for i, b := range data {
-		if i >= offset {
-			break
-		}
 		if b == '\n' {
-			line++
-			col = 1
-		} else {
-			col++
+			p.newlines = append(p.newlines, i)
 		}
 	}
-	return line, col
+	return p
+}
+
+func (p positions) position(offset int) (int, int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > p.length {
+		offset = p.length
+	}
+	line := sort.Search(len(p.newlines), func(i int) bool { return p.newlines[i] >= offset })
+	column := offset + 1
+	if line > 0 {
+		column = offset - p.newlines[line-1]
+	}
+	return line + 1, column
+}
+
+func jsonKeyOffset(data []byte, start int) int {
+	if start < 0 {
+		start = 0
+	}
+	for start < len(data) {
+		switch data[start] {
+		case ' ', '\t', '\r', '\n', ',':
+			start++
+		default:
+			return start
+		}
+	}
+	return len(data)
 }
 
 // Keys returns deterministic mapping order for diagnostics.
