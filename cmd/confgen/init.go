@@ -9,6 +9,7 @@ import (
 
 	"github.com/DiLRandI/confgen/generator"
 	"github.com/DiLRandI/confgen/infer"
+	inputlimit "github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/schema"
 )
 
@@ -44,7 +45,7 @@ func runInit(args []string, stderr io.Writer) int {
 	if *from == "" || *schemaPath == "" || *out == "" || (explicit["package"] && *pkg == "") || fs.NArg() != 0 {
 		return fail(fmt.Errorf("-from, package, and output paths must be non-empty"))
 	}
-	data, err := os.ReadFile(*from)
+	data, err := inputlimit.DefaultLimit.ReadFile(*from)
 	if err != nil {
 		return fail(err)
 	}

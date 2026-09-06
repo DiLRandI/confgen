@@ -16,6 +16,7 @@ import (
 
 	"github.com/DiLRandI/confgen/generator"
 	"github.com/DiLRandI/confgen/infer"
+	inputlimit "github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/schema"
 )
 
@@ -58,7 +59,7 @@ func run(args []string, stderr io.Writer) int {
 	if *from != "" {
 		*input = *from
 	}
-	data, err := os.ReadFile(*input)
+	data, err := inputlimit.DefaultLimit.ReadFile(*input)
 	if err != nil {
 		return fail(err)
 	}

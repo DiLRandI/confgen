@@ -6,14 +6,17 @@ import (
 	"fmt"
 
 	"github.com/DiLRandI/confgen/config"
+	"github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/internal/document"
 	"github.com/DiLRandI/confgen/schema"
 )
 
 // Options sets the generated package and optional environment prefix.
 type Options struct {
-	Package   string
-	EnvPrefix string
+	// InputLimit bounds the source document. Zero uses input.DefaultLimit.
+	InputLimit input.Limit
+	Package    string
+	EnvPrefix  string
 	// CopyDefaults embeds input values in the schema and generated Go.
 	// It is false by default.
 	CopyDefaults bool
@@ -35,6 +38,9 @@ func (e *Error) Error() string {
 // contract. The name is a format/diagnostic label; this function does not read
 // or write files. Strings stay strings; integers use int64 or uint64.
 func FromConfig(name string, data []byte, options Options) (*schema.Model, error) {
+	if err := options.InputLimit.Check(data); err != nil {
+		return nil, fmt.Errorf("%s: %w", name, err)
+	}
 	n, err := document.ParseConfig(name, data)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
@@ -67,7 +73,7 @@ func fromNode(name string, n *document.Node, options Options) (*schema.Model, er
 	if err != nil {
 		return nil, err
 	}
-	return schema.Compile(name+" (inferred schema)", b)
+	return schema.CompileWithLimit(name+" (inferred schema)", b, input.Limit(len(b)))
 }
 
 type inference struct {
