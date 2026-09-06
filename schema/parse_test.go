@@ -1,59 +1,57 @@
 package schema_test
 
 import (
-	"errors"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/DiLRandI/confgen/schema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseExample(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("../examples/appconfig/config.schema.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s, err := schema.Parse("config.schema.yaml", data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s.Version != 1 || s.Package != "appconfig" || s.Name != "Config" || s.EnvPrefix != "SHOP" || s.UnknownFields != "error" {
-		t.Fatalf("unexpected root: %+v", s)
-	}
-	if len(s.Fields) != 7 || s.Fields[0].Name != "server" || s.Fields[6].Name != "labels" {
-		t.Fatalf("field order lost: %+v", s.Fields)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 1, s.Version, "unexpected root: %+v", s)
+	require.Equal(t, "appconfig", s.Package, "unexpected root: %+v", s)
+	require.Equal(t, "Config", s.Name, "unexpected root: %+v", s)
+	require.Equal(t, "SHOP", s.EnvPrefix, "unexpected root: %+v", s)
+	require.Equal(t, "error", s.UnknownFields, "unexpected root: %+v", s)
+	require.Equal(t, 7, len(s.Fields), "field order lost: %+v", s.Fields)
+	require.Equal(t, "server", s.Fields[0].Name, "field order lost: %+v", s.Fields)
+	require.Equal(t, "labels", s.Fields[6].Name, "field order lost: %+v", s.Fields)
 	port := s.Fields[0].Fields[1]
-	if port.Path != "server.port" || port.Default.Value != "8080" || port.Default.Tag != "!!int" {
-		t.Fatalf("unexpected port: %+v", port)
-	}
-	if port.Location.Line != 16 || port.Location.Column != 7 || port.Location.File != "config.schema.yaml" {
-		t.Fatalf("location lost: %+v", port.Location)
-	}
-	if s.Fields[5].Items.Type != "string" || s.Fields[6].Values.Type != "string" {
-		t.Fatal("collection descriptors lost")
-	}
+	require.Equal(t, "server.port", port.Path, "unexpected port: %+v", port)
+	require.Equal(t, "8080", port.Default.Value, "unexpected port: %+v", port)
+	require.Equal(t, "!!int", port.Default.Tag, "unexpected port: %+v", port)
+	require.Equal(t, 16, port.Location.Line, "location lost: %+v", port.Location)
+	require.Equal(t, 7, port.Location.Column, "location lost: %+v", port.Location)
+	require.Equal(t, "config.schema.yaml", port.Location.File, "location lost: %+v", port.Location)
+	require.Equal(t, "string", s.Fields[5].Items.Type, "collection descriptors lost")
+	require.Equal(t, "string", s.Fields[6].Values.Type, "collection descriptors lost")
 }
 
 func TestParsePresence(t *testing.T) {
+	t.Parallel()
 	s, err := schema.Parse("test", []byte("version: 1\npackage: test\nfields:\n  debug:\n    type: bool\n    required: false\n    default: false\n    env: false\n  empty:\n    type: string\n    default: null\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	f := s.Fields[0]
-	if !f.Has("required") || f.Required || !f.Has("default") || f.Default.Tag != "!!bool" || f.Env.Tag != "!!bool" || f.Has("secret") {
-		t.Fatalf("presence lost: %+v", f)
-	}
-	if s.Fields[1].Default == nil || s.Fields[1].Default.Tag != "!!null" {
-		t.Fatal("explicit null lost")
-	}
-	if s.Name != "Config" || s.UnknownFields != "error" {
-		t.Fatal("root defaults missing")
-	}
+	require.True(t, f.Has("required"), "presence lost: %+v", f)
+	require.False(t, f.Required, "presence lost: %+v", f)
+	require.True(t, f.Has("default"), "presence lost: %+v", f)
+	require.Equal(t, "!!bool", f.Default.Tag, "presence lost: %+v", f)
+	require.Equal(t, "!!bool", f.Env.Tag, "presence lost: %+v", f)
+	require.False(t, f.Has("secret"), "presence lost: %+v", f)
+	require.NotNil(t, s.Fields[1].Default, "explicit null lost")
+	require.Equal(t, "!!null", s.Fields[1].Default.Tag, "explicit null lost")
+	require.Equal(t, "Config", s.Name, "root defaults missing")
+	require.Equal(t, "error", s.UnknownFields, "root defaults missing")
 }
 
 func TestParseErrors(t *testing.T) {
+	t.Parallel()
 	prefix := "version: 1\npackage: test\nfields:\n"
 	cases := []struct{ name, input, message string }{
 		{"empty", "", "one valid YAML"},
@@ -84,33 +82,36 @@ func TestParseErrors(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			s, err := schema.Parse("bad.yaml", []byte(tt.input))
-			if s != nil || err == nil || !strings.Contains(err.Error(), tt.message) {
-				t.Fatalf("got %v, %v; want %q", s, err, tt.message)
-			}
+			require.Nil(t, s, "got %v, %v; want %q", s, err, tt.message)
+			require.Error(t, err, "got %v, %v; want %q", s, err, tt.message)
+			require.Contains(t, err.Error(), tt.message, "got %v, %v; want %q", s, err, tt.message)
 			var d *schema.Diagnostic
-			if !errors.As(err, &d) || d.Location.File != "bad.yaml" || d.Location.Line < 1 || d.Location.Column < 1 {
-				t.Fatalf("missing diagnostic: %v", err)
-			}
+			require.ErrorAs(t, err, &d, "missing diagnostic: %v", err)
+			require.Equal(t, "bad.yaml", d.Location.File, "missing diagnostic: %v", err)
+			require.GreaterOrEqual(t, d.Location.Line, 1, "missing diagnostic: %v", err)
+			require.GreaterOrEqual(t, d.Location.Column, 1, "missing diagnostic: %v", err)
 		})
 	}
 }
 
 func TestParseDoesNotEchoValues(t *testing.T) {
+	t.Parallel()
 	const secret = "unique-password-sentinel"
 	_, err := schema.Parse("secret.yaml", []byte("version: 1\npackage: app\nfields:\n  password:\n    type: string\n    secret: true\n    required: "+secret))
-	if err == nil || strings.Contains(err.Error(), secret) {
-		t.Fatalf("unsafe error: %v", err)
-	}
+	require.Error(t, err, "unsafe error: %v", err)
+	require.NotContains(t, err.Error(), secret, "unsafe error: %v", err)
 }
 
 func TestParseListObject(t *testing.T) {
+	t.Parallel()
 	s, err := schema.Parse("test", []byte("version: 1\npackage: app\nfields:\n  backends:\n    type: list\n    items:\n      type: object\n      fields:\n        url: {type: string, required: true}\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if f := s.Fields[0].Items.Fields[0]; f.Path != "backends[].url" || !f.Required {
-		t.Fatalf("bad item: %+v", f)
+	require.NoError(t, err)
+	{
+		f := s.Fields[0].Items.Fields[0]
+		require.Equal(t, "backends[].url", f.Path, "bad item: %+v", f)
+		require.True(t, f.Required, "bad item: %+v", f)
 	}
 }
 
@@ -120,8 +121,8 @@ func FuzzParse(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		s, err := schema.Parse("fuzz.yaml", data)
-		if err == nil && s == nil {
-			t.Fatal("nil schema without error")
+		if err == nil {
+			require.NotNil(t, s, "nil schema without error")
 		}
 	})
 }

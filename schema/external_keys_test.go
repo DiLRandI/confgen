@@ -2,26 +2,28 @@ package schema_test
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/DiLRandI/confgen/schema"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExternalKeys(t *testing.T) {
+	t.Parallel()
 	for _, key := range []string{"snake_case", "camelCase", "PascalCase", "kebab-case", "some.key", "clé"} {
 		m, err := schema.Compile("key.yaml", []byte("version: 1\npackage: app\nenv_prefix: APP\nfields:\n  canonical: {type: string, key: "+strconv.Quote(key)+"}\n"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		f := m.Descriptor.Fields[0]
-		if f.ExternalKey() != key || f.Name != "canonical" || f.Path != "canonical" || f.GoName != "Canonical" || f.EnvName != "APP_CANONICAL" {
-			t.Fatal("names conflated")
-		}
+		require.Equal(t, key, f.ExternalKey(), "names conflated")
+		require.Equal(t, "canonical", f.Name, "names conflated")
+		require.Equal(t, "canonical", f.Path, "names conflated")
+		require.Equal(t, "Canonical", f.GoName, "names conflated")
+		require.Equal(t, "APP_CANONICAL", f.EnvName, "names conflated")
 	}
 }
 
 func TestInvalidExternalKeys(t *testing.T) {
+	t.Parallel()
 	for _, fields := range []string{
 		"a: {type: string, key: ''}",
 		"a: {type: string, key: 123}",
@@ -39,16 +41,14 @@ func TestInvalidExternalKeys(t *testing.T) {
 		"a: {type: map, values: {type: string, key: invalid}}",
 		"a: {type: object, fields: {b: {type: string, key: x}, c: {type: string, key: x}}}",
 	} {
-		if _, err := schema.Compile("bad.yaml", []byte("version: 1\npackage: app\nfields:\n  "+fields+"\n")); err == nil {
-			t.Fatalf("accepted %s", fields)
+		{
+			_, err := schema.Compile("bad.yaml", []byte("version: 1\npackage: app\nfields:\n  "+fields+"\n"))
+			require.Error(t, err, "accepted %s", fields)
 		}
 	}
 	m, err := schema.Compile("old.yaml", []byte("version: 1\npackage: app\nfields:\n  unchanged: {type: string}\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	b, err := schema.Render(m)
-	if err != nil || strings.Contains(string(b), "key:") {
-		t.Fatalf("legacy key changed: %v\n%s", err, b)
-	}
+	require.NoError(t, err, "legacy key changed: %v\n%s", err, b)
+	require.NotContains(t, string(b), "key:", "legacy key changed: %v\n%s", err, b)
 }

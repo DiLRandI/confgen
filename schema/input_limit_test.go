@@ -1,26 +1,31 @@
 package schema_test
 
 import (
+	"strconv"
+	"testing"
+
 	"github.com/DiLRandI/confgen/input"
 	"github.com/DiLRandI/confgen/schema"
-	"strings"
-	"testing"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSchemaInputLimits(t *testing.T) {
 	data := []byte("version: 1\npackage: example\nfields:\n  value: {type: string, default: secret-value}\n")
 	for _, limit := range []input.Limit{input.Limit(len(data) - 1), input.Limit(len(data)), input.Limit(len(data) + 1)} {
-		model, err := schema.CompileWithLimit("schema", data, limit)
-		if limit < input.Limit(len(data)) {
-			if model != nil || err == nil || !strings.Contains(err.Error(), "byte limit") || strings.Contains(err.Error(), "secret-value") {
-				t.Fatalf("oversize: %v", err)
+		t.Run(strconv.FormatInt(int64(limit), 10), func(t *testing.T) {
+			model, err := schema.CompileWithLimit("schema", data, limit)
+			if limit < input.Limit(len(data)) {
+				assert.Nil(t, model)
+				require.ErrorContains(t, err, "byte limit")
+				assert.NotContains(t, err.Error(), "secret-value")
+			} else {
+				require.NoError(t, err)
 			}
-		} else if err != nil {
-			t.Fatal(err)
-		}
+		})
 	}
 	data = make([]byte, int(input.DefaultLimit)+1)
-	if parsed, err := schema.Parse("schema", data); parsed != nil || err == nil || !strings.Contains(err.Error(), "byte limit") {
-		t.Fatalf("default: %v", err)
-	}
+	parsed, err := schema.Parse("schema", data)
+	assert.Nil(t, parsed)
+	require.ErrorContains(t, err, "byte limit")
 }

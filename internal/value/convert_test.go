@@ -3,13 +3,15 @@ package value
 import (
 	"encoding/json"
 	"math"
-	"reflect"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestScalarConversion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		kind  Kind
 		raw   any
@@ -51,23 +53,26 @@ func TestScalarConversion(t *testing.T) {
 	}
 	for i, c := range cases {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Parallel()
 			got, issues := Convert(Field{Kind: c.kind}, c.raw, c.text, "field")
-			if (len(issues) == 0) != c.valid || c.valid && !reflect.DeepEqual(got, c.want) {
-				t.Fatalf("got %#v %v, want %#v valid=%v", got, issues, c.want, c.valid)
+			if c.valid {
+				require.Empty(t, issues)
+				require.Equal(t, c.want, got)
+			} else {
+				require.NotEmpty(t, issues)
 			}
 		})
 	}
 	if strconv.IntSize == 32 {
-		if _, issues := Convert(Field{Kind: Int}, "2147483648", true, "x"); len(issues) == 0 {
-			t.Fatal("platform int overflow accepted")
-		}
-		if _, issues := Convert(Field{Kind: Uint}, "4294967296", true, "x"); len(issues) == 0 {
-			t.Fatal("platform uint overflow accepted")
-		}
+		_, issues := Convert(Field{Kind: Int}, "2147483648", true, "x")
+		require.NotEmpty(t, issues, "platform int overflow accepted")
+		_, issues = Convert(Field{Kind: Uint}, "4294967296", true, "x")
+		require.NotEmpty(t, issues, "platform uint overflow accepted")
 	}
 }
 
 func TestExactBoundsAndLengths(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		f     Field
 		raw   any
@@ -81,8 +86,10 @@ func TestExactBoundsAndLengths(t *testing.T) {
 		{Field{Kind: Map, MapValue: &Field{Kind: String}, Constraints: Constraints{MinLength: new(1)}}, map[string]any{}, false},
 	} {
 		_, issues := Convert(tc.f, tc.raw, false, "field")
-		if (len(issues) == 0) != tc.valid {
-			t.Fatalf("%+v: %v", tc.f, issues)
+		if tc.valid {
+			require.Empty(t, issues, "%+v", tc.f)
+		} else {
+			require.NotEmpty(t, issues, "%+v", tc.f)
 		}
 	}
 }
