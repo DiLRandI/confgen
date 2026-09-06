@@ -24,10 +24,10 @@ recorded revision, not a speed guarantee.
 
 ## Repository settings
 
-Suggested description: Type-safe Go configuration generated from YAML schemas.
+Suggested description: Generate type-safe Go configuration from existing config files or strict schemas.
 
-Suggested topics: `golang`, `go`, `configuration`, `code-generation`, `yaml`,
-`environment-variables`, `config`.
+Suggested topics: `golang`, `configuration`, `code-generation`, `yaml`, `json`,
+`environment-variables`, `config`, `type-safe`.
 
 Enable private vulnerability reporting. CI and Go Reference badges are useful;
 add a release badge after tagging a release. These settings remain owner-controlled.
