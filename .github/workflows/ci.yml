@@ -40,6 +40,11 @@ jobs:
         run: |
           go -C examples generate ./...
           test -z "$(git status --porcelain -- examples)"
+      - name: Check generated test mocks
+        run: |
+          go install github.com/vektra/mockery/v3@v3.7.4
+          mockery
+          git diff --exit-code -- config/mocks_test.go
       - name: Check reachable vulnerabilities
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
