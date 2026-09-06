@@ -173,9 +173,13 @@ func TestConfig(t *testing.T) {
 func FuzzFromConfig(f *testing.F) {
 	f.Add([]byte("port: 8080"))
 	f.Add([]byte(`{"port":8080}`))
+	f.Add([]byte("fields: {port: {type: int64}}"))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		for _, name := range []string{"fuzz.yaml", "fuzz.json"} {
 			_, _ = infer.FromConfig(name, b, infer.Options{Package: "app"})
+		}
+		if rules, err := infer.ParseOverrides("fuzz.overrides.yaml", b); err == nil {
+			_, _ = infer.FromConfig("config.yaml", []byte("port: null"), infer.Options{Overrides: rules, CopyDefaults: true})
 		}
 	})
 }

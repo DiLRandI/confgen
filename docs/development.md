@@ -46,5 +46,6 @@ for explicit and inferred schemas. No parallel contract model is introduced.
 
 A future dotenv adapter should provide strings, even for values such as `8080`
 or `true`. `TestNormalizedTextAdapter` locks down that behavior. `TestNormalizedArrayAdapter`
-checks the parser-independent array boundary. TOML, dotenv, and sparse override
-files are deferred; users edit the generated full schema today.
+checks the parser-independent array boundary. Sparse overrides select types during
+inference; validation still uses the existing schema compiler. TOML and dotenv
+remain deferred. Other metadata belongs in the generated full schema.

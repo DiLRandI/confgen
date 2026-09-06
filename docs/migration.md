@@ -88,6 +88,31 @@ Two keys mapping to the same canonical name are an error, including across list
 items. No numeric suffixes are invented. Runtime loading still uses the original
 keys, so the input file does not need renaming or reformatting.
 
+## Sparse type overrides
+
+Use `--overrides confgen.overrides.yaml` with `init` or `generate --from` to resolve
+nulls, empty collections, or explicit semantic types without editing the input:
+
+```yaml
+fields:
+  database_url: {type: string}
+  allowed_hosts: {type: list, items: {type: string}}
+  server.timeout: {type: duration}
+  labels: {type: map, values: {type: string}}
+```
+
+Paths are canonical dotted names, including when the original key is camelCase
+or kebab-case. Unknown paths, incompatible values, and unsupported properties
+are errors. Only `type`, scalar `items.type`, and scalar `values.type` are
+supported. Overrides inside list objects and new object shapes are deferred.
+Add descriptions, validation, secrets, and environment mappings to the generated
+full schema instead.
+
+With `--copy-defaults`, compatible non-null values become defaults. A collection
+containing null is omitted as a whole, not partially copied. Overrides provide
+types for onboarding; runtime null values remain errors. Supply real values
+through a runtime config or environment source before loading the application.
+
 For a quick disposable generation without saving a schema:
 
 ```sh

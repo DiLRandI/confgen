@@ -17,6 +17,8 @@ type Options struct {
 	// CopyDefaults embeds input values in the schema and generated Go.
 	// It is false by default.
 	CopyDefaults bool
+	// Overrides uses canonical dotted paths, such as server.timeout.
+	Overrides map[string]TypeOverride
 }
 
 // Error describes an ambiguous or unsupported input without echoing its value.
@@ -41,7 +43,10 @@ func FromConfig(name string, data []byte, options Options) (*schema.Model, error
 }
 
 func fromNode(name string, n *document.Node, options Options) (*schema.Model, error) {
-	i := inference{file: name}
+	if err := validateOverrides(options.Overrides); err != nil {
+		return nil, err
+	}
+	i := inference{file: name, overrides: options.Overrides, used: map[string]bool{}}
 	if n.Fields == nil {
 		return nil, i.fail(n, "<root>", "configuration must be an object")
 	}
@@ -52,6 +57,11 @@ func fromNode(name string, n *document.Node, options Options) (*schema.Model, er
 	if err != nil {
 		return nil, err
 	}
+	for _, path := range overridePaths(options.Overrides) {
+		if !i.used[path] {
+			return nil, fmt.Errorf("override references unknown field %q", path)
+		}
+	}
 	m := &schema.Model{Package: options.Package, Name: "Config", Descriptor: config.Descriptor{RootName: "Config", EnvPrefix: options.EnvPrefix, Fields: f.Children}}
 	b, err := schema.Render(m)
 	if err != nil {
@@ -60,13 +70,25 @@ func fromNode(name string, n *document.Node, options Options) (*schema.Model, er
 	return schema.Compile(name+" (inferred schema)", b)
 }
 
-type inference struct{ file string }
+type inference struct {
+	file      string
+	overrides map[string]TypeOverride
+	used      map[string]bool
+}
 
 func (i inference) fail(n *document.Node, path, reason string) error {
 	return &Error{Path: path, Reason: reason, Location: schema.Location{File: i.file, Line: n.Line, Column: n.Column}}
 }
 
 func (i inference) field(n *document.Node, path string, defaults bool) (config.FieldDescriptor, error) {
+	if rule, ok := i.overrides[path]; ok {
+		i.used[path] = true
+		return i.override(n, path, defaults, rule)
+	}
+	return i.inferField(n, path, defaults)
+}
+
+func (i inference) inferField(n *document.Node, path string, defaults bool) (config.FieldDescriptor, error) {
 	f := config.FieldDescriptor{Path: path}
 	if n.Fields != nil {
 		f.Kind = config.KindObject

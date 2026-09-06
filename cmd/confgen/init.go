@@ -21,6 +21,7 @@ func runInit(args []string, stderr io.Writer) int {
 	}
 	from := fs.String("from", "", "existing .yaml, .yml, or .json config")
 	copyDefaults := fs.Bool("copy-defaults", false, "copy inferred input values into schema defaults")
+	overrides := fs.String("overrides", "", "sparse YAML type overrides for canonical field paths")
 	pkg := fs.String("package", "appconfig", "generated Go package")
 	schemaPath := fs.String("schema", "", "new editable schema path (default: <package>/config.schema.yaml)")
 	out := fs.String("out", "", "new generated Go path (default: <package>/config_gen.go)")
@@ -47,7 +48,11 @@ func runInit(args []string, stderr io.Writer) int {
 	if err != nil {
 		return fail(err)
 	}
-	m, err := infer.FromConfig(*from, data, infer.Options{Package: *pkg, EnvPrefix: *prefix, CopyDefaults: *copyDefaults})
+	rules, err := readOverrides(*overrides)
+	if err != nil {
+		return fail(err)
+	}
+	m, err := infer.FromConfig(*from, data, infer.Options{Package: *pkg, EnvPrefix: *prefix, CopyDefaults: *copyDefaults, Overrides: rules})
 	if err != nil {
 		return fail(err)
 	}
