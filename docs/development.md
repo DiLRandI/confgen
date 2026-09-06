@@ -63,3 +63,15 @@ govulncheck ./...
 CI runs the same check and fails on reachable known vulnerabilities. The tool is
 installed separately and is not an application module dependency. Vulnerability
 data comes from the live Go vulnerability database.
+
+During v0.x, tests verify current generation against the current specification
+and runtime. Historical generated-code compatibility coverage is deferred until
+v1; regenerate consumers when upgrading.
+
+Actions are pinned to release commit SHAs with version comments. The existing
+GitHub Actions Dependabot configuration keeps update proposals enabled.
+
+For `main`, configure a GitHub ruleset requiring a pull request and the existing
+`test (1.26.x)` and `test (stable)` Go checks, blocking force pushes and branch
+deletion. Optionally require branches to be up-to-date before merge. Rulesets
+and private vulnerability reporting are manual repository settings.
