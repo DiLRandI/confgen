@@ -2,12 +2,10 @@ package config_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -15,6 +13,9 @@ import (
 	"time"
 
 	"github.com/DiLRandI/confgen/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type testConfig struct {
@@ -54,61 +55,64 @@ func environment(m map[string]string) config.Source {
 func issue(t *testing.T, err error, kind config.IssueKind) {
 	t.Helper()
 	var e *config.Error
-	if !errors.As(err, &e) || len(e.Issues) == 0 || e.Issues[0].Kind != kind {
-		t.Fatalf("want %s, got %v", kind, err)
-	}
+	require.ErrorAs(t, err, &e)
+	require.NotEmpty(t, e.Issues)
+	assert.Equal(t, kind, e.Issues[0].Kind)
 }
 
 func TestInvalidObjectShape(t *testing.T) {
+	t.Parallel()
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "server", Kind: config.KindObject, GoIndex: []int{0}, Children: []config.FieldDescriptor{{Name: "host", Path: "server.host", Kind: config.KindString, GoIndex: []int{0}}}}}}
 	c, err := config.Load[testConfig](context.Background(), d, reader("server: scalar"))
-	if c != nil || err == nil {
-		t.Fatalf("accepted scalar object: %+v, %v", c, err)
-	}
+	assert.Nil(t, c)
 	issue(t, err, config.IssueType)
 }
 
 func TestEmptyObjectNull(t *testing.T) {
+	t.Parallel()
 	type cfg struct{ Empty struct{} }
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "empty", Path: "empty", Kind: config.KindObject, GoIndex: []int{0}}}}
-	if c, err := config.Load[cfg](context.Background(), d, reader("empty: null")); c != nil || err == nil {
-		t.Fatalf("accepted null empty object: %+v %v", c, err)
-	}
-	if _, err := config.Load[cfg](context.Background(), d, reader("empty: null"), reader("empty: {}")); err != nil {
-		t.Fatal(err)
-	}
+	c, err := config.Load[cfg](context.Background(), d, reader("empty: null"))
+	assert.Nil(t, c)
+	require.Error(t, err)
+	_, err = config.Load[cfg](context.Background(), d, reader("empty: null"), reader("empty: {}"))
+	require.NoError(t, err)
 }
 
 func TestTimestampConversionAfterMerge(t *testing.T) {
+	t.Parallel()
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "name", Path: "name", Kind: config.KindString, GoIndex: []int{0}, EnvName: "NAME"}}}
 	low := reader("name: 2026-09-05")
-	if _, err := config.Load[struct{ Name string }](context.Background(), d, low); err == nil {
-		t.Fatal("timestamp accepted as string")
-	}
+	_, err := config.Load[struct{ Name string }](context.Background(), d, low)
+	require.Error(t, err, "timestamp accepted as string")
 	c, err := config.Load[struct{ Name string }](context.Background(), d, low, environment(map[string]string{"NAME": "overridden"}))
-	if err != nil || c.Name != "overridden" {
-		t.Fatalf("overridden timestamp rejected: %+v %v", c, err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "overridden", c.Name)
 }
 
 func TestPresencePrecedenceAndCollections(t *testing.T) {
+	t.Parallel()
 	d := descriptor()
 	low := reader("server: {host: original, port: wrong}\ndebug: true\nname: previous\nlist: [a, b]\nlabels: {a: one, b: two}")
 	env := environment(map[string]string{"APP_PORT": "0", "APP_DEBUG": "false", "EXPLICIT_NAME": "", "APP_LIST": "[]", "APP_LABELS": "{}", "APP_TIMEOUT": "1h30m"})
 	c, err := config.Load[testConfig](context.Background(), d, low, env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c.Server.Port != 0 || c.Server.Host != "original" || c.Server.Timeout != 90*time.Minute || c.Debug || c.Name != "" || len(c.List) != 0 || len(c.Labels) != 0 || c.List == nil || c.Labels == nil {
-		t.Fatalf("%+v", c)
-	}
+	require.NoError(t, err)
+	assert.Zero(t, c.Server.Port)
+	assert.Equal(t, "original", c.Server.Host)
+	assert.Equal(t, 90*time.Minute, c.Server.Timeout)
+	assert.False(t, c.Debug)
+	assert.Empty(t, c.Name)
+	assert.Equal(t, []string{}, c.List)
+	assert.Equal(t, map[string]string{}, c.Labels)
 	c, err = config.Load[testConfig](context.Background(), d, env, reader("server: {port: 42}\ndebug: false\nname: file"))
-	if err != nil || c.Server.Port != 42 || c.Name != "file" || c.Server.Host != "localhost" {
-		t.Fatalf("%+v %v", c, err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 42, c.Server.Port)
+	assert.Equal(t, "file", c.Name)
+	assert.Equal(t, "localhost", c.Server.Host)
 }
 
 func TestFinalErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, input string
 		kind        config.IssueKind
@@ -125,90 +129,87 @@ func TestFinalErrors(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			c, err := config.Load[testConfig](context.Background(), descriptor(), reader(tt.input))
-			if c != nil {
-				t.Fatal("partial config")
-			}
+			assert.Nil(t, c, "partial config")
 			issue(t, err, tt.kind)
 		})
 	}
 	_, err := config.Load[testConfig](context.Background(), descriptor())
 	var e *config.Error
-	if !errors.As(err, &e) || len(e.Issues) != 3 || e.Issues[0].Path != "server.port" || e.Issues[1].Path != "debug" || e.Issues[2].Path != "name" {
-		t.Fatalf("%v", err)
-	}
+	require.ErrorAs(t, err, &e)
+	require.Len(t, e.Issues, 3)
+	assert.Equal(t, "server.port", e.Issues[0].Path)
+	assert.Equal(t, "debug", e.Issues[1].Path)
+	assert.Equal(t, "name", e.Issues[2].Path)
 }
 
 func TestSourceValidationBeforeMerge(t *testing.T) {
-	for _, format := range []config.Format{config.FormatYAML, config.FormatJSON} {
-		for _, input := range []string{`{"unknown": 1}`, `{"name":"a", "name":"b"}`} {
-			s := config.Reader("low", strings.NewReader(input), format)
-			_, e := config.Load[testConfig](context.Background(), descriptor(), s, environment(map[string]string{"APP_PORT": "0", "APP_DEBUG": "false", "EXPLICIT_NAME": ""}))
-			if e == nil {
-				t.Fatal("source error hidden")
+	t.Parallel()
+	for name, format := range map[string]config.Format{"yaml": config.FormatYAML, "json": config.FormatJSON} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for name, input := range map[string]string{"unknown": `{"unknown": 1}`, "duplicate": `{"name":"a", "name":"b"}`} {
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					s := config.Reader("low", strings.NewReader(input), format)
+					_, err := config.Load[testConfig](context.Background(), descriptor(), s, environment(map[string]string{"APP_PORT": "0", "APP_DEBUG": "false", "EXPLICIT_NAME": ""}))
+					require.Error(t, err, "source error hidden")
+				})
 			}
-		}
+		})
 	}
 }
 
 func TestFilesAndReaders(t *testing.T) {
+	t.Parallel()
 	for _, ext := range []string{"yaml", "yml", "json"} {
 		t.Run(ext, func(t *testing.T) {
+			t.Parallel()
 			p := filepath.Join(t.TempDir(), "config."+ext)
-			if e := os.WriteFile(p, []byte(`{"server":{"port":1},"debug":false,"name":""}`), 0o600); e != nil {
-				t.Fatal(e)
-			}
-			c, e := config.Load[testConfig](context.Background(), descriptor(), config.File(p))
-			if e != nil || c.Server.Port != 1 {
-				t.Fatalf("%+v %v", c, e)
-			}
-			if e := os.WriteFile(p, []byte(`{"server":{"port":2},"debug":false,"name":""}`), 0o600); e != nil {
-				t.Fatal(e)
-			}
-			c, e = config.Load[testConfig](context.Background(), descriptor(), config.File(p))
-			if e != nil || c.Server.Port != 2 {
-				t.Fatalf("%+v %v", c, e)
-			}
+			require.NoError(t, os.WriteFile(p, []byte(`{"server":{"port":1},"debug":false,"name":""}`), 0o600))
+			c, err := config.Load[testConfig](context.Background(), descriptor(), config.File(p))
+			require.NoError(t, err)
+			assert.Equal(t, 1, c.Server.Port)
+			require.NoError(t, os.WriteFile(p, []byte(`{"server":{"port":2},"debug":false,"name":""}`), 0o600))
+			c, err = config.Load[testConfig](context.Background(), descriptor(), config.File(p))
+			require.NoError(t, err)
+			assert.Equal(t, 2, c.Server.Port)
 		})
 	}
 	d := config.Descriptor{}
 	missing := filepath.Join(t.TempDir(), "missing.yaml")
-	if _, e := config.Load[struct{}](context.Background(), d, config.OptionalFile(missing)); e != nil {
-		t.Fatal(e)
-	}
-	_, e := config.Load[struct{}](context.Background(), d, config.File(missing))
-	if !errors.Is(e, os.ErrNotExist) {
-		t.Fatal(e)
-	}
+	_, err := config.Load[struct{}](context.Background(), d, config.OptionalFile(missing))
+	require.NoError(t, err)
+	_, err = config.Load[struct{}](context.Background(), d, config.File(missing))
+	require.ErrorIs(t, err, os.ErrNotExist)
 	dir := filepath.Join(t.TempDir(), "dir.yaml")
-	if e := os.Mkdir(dir, 0o700); e != nil {
-		t.Fatal(e)
-	}
-	_, e = config.Load[struct{}](context.Background(), d, config.OptionalFile(dir))
-	issue(t, e, config.IssueSource)
-	_, e = config.Load[struct{}](context.Background(), d, config.Reader("broken", brokenReader{}, config.FormatYAML))
-	issue(t, e, config.IssueSource)
-	_, e = config.Load[struct{}](context.Background(), d, config.Reader("bad-format", strings.NewReader("{}"), 99))
-	issue(t, e, config.IssueSource)
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	_, err = config.Load[struct{}](context.Background(), d, config.OptionalFile(dir))
+	issue(t, err, config.IssueSource)
+	_, err = config.Load[struct{}](context.Background(), d, config.Reader("broken", brokenReader{}, config.FormatYAML))
+	issue(t, err, config.IssueSource)
+	_, err = config.Load[struct{}](context.Background(), d, config.Reader("bad-format", strings.NewReader("{}"), 99))
+	issue(t, err, config.IssueSource)
 }
 
 func TestPermissionError(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("requires POSIX permissions and an unprivileged user")
 	}
 	p := filepath.Join(t.TempDir(), "private.yaml")
-	if err := os.WriteFile(p, []byte("{}"), 0o000); err != nil {
-		t.Fatal(err)
-	}
-	for _, source := range []config.Source{config.File(p), config.OptionalFile(p)} {
-		_, err := config.Load[struct{}](context.Background(), config.Descriptor{}, source)
-		if !errors.Is(err, os.ErrPermission) {
-			t.Fatalf("permission error lost: %v", err)
-		}
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o000))
+	for name, source := range map[string]config.Source{"required": config.File(p), "optional": config.OptionalFile(p)} {
+		t.Run(name, func(t *testing.T) {
+			_, err := config.Load[struct{}](context.Background(), config.Descriptor{}, source)
+			require.ErrorIs(t, err, os.ErrPermission)
+		})
 	}
 }
 
 func TestJSONErrorCategories(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		input string
 		kind  config.IssueKind
@@ -218,8 +219,11 @@ func TestJSONErrorCategories(t *testing.T) {
 		{`{"unknown":1}`, config.IssueUnknownField},
 		{`{"name":`, config.IssueSyntax},
 	} {
-		_, err := config.Load[testConfig](context.Background(), descriptor(), config.Reader("json", strings.NewReader(tt.input), config.FormatJSON))
-		issue(t, err, tt.kind)
+		t.Run(string(tt.kind), func(t *testing.T) {
+			t.Parallel()
+			_, err := config.Load[testConfig](context.Background(), descriptor(), config.Reader("json", strings.NewReader(tt.input), config.FormatJSON))
+			issue(t, err, tt.kind)
+		})
 	}
 }
 
@@ -238,85 +242,90 @@ func TestEnvLoadTimeAndDisabled(t *testing.T) {
 	t.Setenv("EXPLICIT_NAME", "ignored")
 	for _, port := range []string{"2", "3"} {
 		t.Setenv("APP_PORT", port)
-		c, e := config.Load[testConfig](context.Background(), d, s)
-		if e != nil || fmt.Sprint(c.Server.Port) != port || c.Name != "default" {
-			t.Fatalf("%+v %v", c, e)
-		}
+		c, err := config.Load[testConfig](context.Background(), d, s)
+		require.NoError(t, err)
+		assert.Equal(t, port, fmt.Sprint(c.Server.Port))
+		assert.Equal(t, "default", c.Name)
 	}
 }
 
 func TestConstraintsAndRedaction(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
+		name string
 		kind config.Kind
 		raw  any
 		c    config.Constraints
 	}{
-		{config.KindInt, 0, config.Constraints{Min: 1}},
-		{config.KindInt, 10, config.Constraints{Max: 9}},
-		{config.KindString, "bad", config.Constraints{Enum: []any{"good"}}},
-		{config.KindString, "sentinel-secret", config.Constraints{Pattern: "^safe$"}},
+		{"minimum", config.KindInt, 0, config.Constraints{Min: 1}},
+		{"maximum", config.KindInt, 10, config.Constraints{Max: 9}},
+		{"enum", config.KindString, "bad", config.Constraints{Enum: []any{"good"}}},
+		{"pattern", config.KindString, "sentinel-secret", config.Constraints{Pattern: "^safe$"}},
 	} {
-		d := config.Descriptor{Fields: []config.FieldDescriptor{{Path: "secret", Kind: tc.kind, GoIndex: []int{0}, HasDefault: true, Default: tc.raw, Secret: true, Constraints: tc.c}}}
-		_, err := config.Load[struct{ X string }](context.Background(), d)
-		issue(t, err, config.IssueConstraint)
-		if strings.Contains(fmt.Sprintf("%+v %#v", err, err), "sentinel-secret") {
-			t.Fatal("secret leaked")
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := config.Descriptor{Fields: []config.FieldDescriptor{{Path: "secret", Kind: tc.kind, GoIndex: []int{0}, HasDefault: true, Default: tc.raw, Secret: true, Constraints: tc.c}}}
+			_, err := config.Load[struct{ X string }](context.Background(), d)
+			issue(t, err, config.IssueConstraint)
+			assert.NotContains(t, fmt.Sprintf("%+v %#v", err, err), "sentinel-secret")
+		})
 	}
 	d := descriptor()
 	d.Fields[0].Children[1].Secret = true
 	_, err := config.Load[testConfig](context.Background(), d, environment(map[string]string{"APP_PORT": "sentinel-secret", "APP_DEBUG": "false", "EXPLICIT_NAME": ""}))
 	issue(t, err, config.IssueType)
-	if strings.Contains(fmt.Sprintf("%+v %#v", err, err), "sentinel-secret") || !strings.Contains(err.Error(), "env:APP_PORT") || !strings.Contains(err.Error(), "[REDACTED]") {
-		t.Fatal(err)
-	}
-}
-
-type sourceFunc struct {
-	fn func(context.Context) (config.Document, error)
-}
-
-func (s sourceFunc) Name() string { return "custom" }
-func (s sourceFunc) Load(ctx context.Context, _ *config.Descriptor) (config.Document, error) {
-	return s.fn(ctx)
+	assert.NotContains(t, fmt.Sprintf("%+v %#v", err, err), "sentinel-secret")
+	assert.Contains(t, err.Error(), "env:APP_PORT")
+	assert.Contains(t, err.Error(), "[REDACTED]")
 }
 
 func TestCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	c, e := config.Load[testConfig](ctx, descriptor())
-	if c != nil || !errors.Is(e, context.Canceled) {
-		t.Fatal(e)
-	}
-	issue(t, e, config.IssueCanceled)
-	ctx, cancel = context.WithCancel(context.Background())
-	s := sourceFunc{func(ctx context.Context) (config.Document, error) { cancel(); return config.Document{}, nil }}
-	c, e = config.Load[testConfig](ctx, descriptor(), s)
-	if c != nil || !errors.Is(e, context.Canceled) {
-		t.Fatal(e)
-	}
+	t.Parallel()
+	t.Run("before load", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		source := NewMockSource(t)
+		c, err := config.Load[testConfig](ctx, descriptor(), source)
+		assert.Nil(t, c)
+		require.ErrorIs(t, err, context.Canceled)
+		issue(t, err, config.IssueCanceled)
+	})
+	t.Run("during source", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		source := NewMockSource(t)
+		source.EXPECT().Load(ctx, mock.Anything).RunAndReturn(func(context.Context, *config.Descriptor) (config.Document, error) {
+			cancel()
+			return config.Document{}, nil
+		}).Once()
+		c, err := config.Load[testConfig](ctx, descriptor(), source)
+		assert.Nil(t, c)
+		require.ErrorIs(t, err, context.Canceled)
+	})
 }
 
 func TestSyntheticPresence(t *testing.T) {
+	t.Parallel()
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Path: "x", Kind: config.KindInt, GoIndex: []int{0}, HasDefault: true, Default: 42}}}
-	s := sourceFunc{func(context.Context) (config.Document, error) {
-		return config.Document{Values: map[string]config.RawValue{"x": {Value: 0, Present: false}}}, nil
-	}}
-	c, e := config.Load[struct{ X int }](context.Background(), d, s)
-	if e != nil || c.X != 42 {
-		t.Fatalf("%+v %v", c, e)
-	}
+	source := NewMockSource(t)
+	source.EXPECT().Load(context.Background(), &d).Return(config.Document{Values: map[string]config.RawValue{"x": {Value: 0, Present: false}}}, nil).Once()
+	c, err := config.Load[struct{ X int }](context.Background(), d, source)
+	require.NoError(t, err)
+	assert.Equal(t, 42, c.X)
 }
 
 func TestConcurrentReader(t *testing.T) {
+	t.Parallel()
 	s := reader("server: {port: 0}\ndebug: false\nname: ''")
 	d := descriptor()
 	var wg sync.WaitGroup
 	for range 20 {
 		wg.Go(func() {
-			c, e := config.Load[testConfig](context.Background(), d, s)
-			if e != nil || c.Server.Host != "localhost" {
-				t.Errorf("%+v %v", c, e)
+			c, err := config.Load[testConfig](context.Background(), d, s)
+			if assert.NoError(t, err) && assert.NotNil(t, c) {
+				assert.Equal(t, "localhost", c.Server.Host)
 			}
 		})
 	}
@@ -324,15 +333,16 @@ func TestConcurrentReader(t *testing.T) {
 }
 
 func TestUnknownIgnoreAndNullOverride(t *testing.T) {
+	t.Parallel()
 	d := descriptor()
 	d.UnknownFields = config.UnknownFieldsIgnore
-	c, e := config.Load[testConfig](context.Background(), d, reader("unknown: x\nserver: {port: null, typo: 3}\ndebug: false\nname: ''"), environment(map[string]string{"APP_PORT": "5"}))
-	if e != nil || c.Server.Port != 5 {
-		t.Fatalf("%+v %v", c, e)
-	}
+	c, err := config.Load[testConfig](context.Background(), d, reader("unknown: x\nserver: {port: null, typo: 3}\ndebug: false\nname: ''"), environment(map[string]string{"APP_PORT": "5"}))
+	require.NoError(t, err)
+	assert.Equal(t, 5, c.Server.Port)
 }
 
 func TestListOfObjects(t *testing.T) {
+	t.Parallel()
 	type backend struct {
 		Name string
 		Port int
@@ -340,12 +350,11 @@ func TestListOfObjects(t *testing.T) {
 	type cfg struct{ Backends []backend }
 	item := config.FieldDescriptor{Kind: config.KindObject, Children: []config.FieldDescriptor{{Name: "name", Kind: config.KindString, Required: true, GoIndex: []int{0}}, {Name: "port", Kind: config.KindInt, HasDefault: true, Default: 80, GoIndex: []int{1}}}}
 	d := config.Descriptor{Fields: []config.FieldDescriptor{{Name: "backends", Path: "backends", Kind: config.KindList, GoIndex: []int{0}, EnvName: "BACKENDS", Item: &item}}}
-	c, e := config.Load[cfg](context.Background(), d, environment(map[string]string{"BACKENDS": `[{"name":"api"}]`}))
-	if e != nil || !reflect.DeepEqual(c.Backends, []backend{{"api", 80}}) {
-		t.Fatalf("%+v %v", c, e)
-	}
-	_, e = config.Load[cfg](context.Background(), d, reader("backends: [{typo: x}]"), environment(map[string]string{"BACKENDS": "[]"}))
-	issue(t, e, config.IssueUnknownField)
+	c, err := config.Load[cfg](context.Background(), d, environment(map[string]string{"BACKENDS": `[{"name":"api"}]`}))
+	require.NoError(t, err)
+	assert.Equal(t, []backend{{"api", 80}}, c.Backends)
+	_, err = config.Load[cfg](context.Background(), d, reader("backends: [{typo: x}]"), environment(map[string]string{"BACKENDS": "[]"}))
+	issue(t, err, config.IssueUnknownField)
 }
 
 func FuzzSources(f *testing.F) {
