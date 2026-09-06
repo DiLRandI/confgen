@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Node holds a raw value and source positions before precedence resolution.

@@ -9,7 +9,7 @@ import (
 
 	"github.com/DiLRandI/confgen/config"
 	"github.com/DiLRandI/confgen/schema"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // ExampleYAML generates a schema-ordered configuration template. Secrets use

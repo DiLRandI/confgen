@@ -77,7 +77,7 @@ import (
  "strings"
  "testing"
  "github.com/DiLRandI/confgen/config"
- "gopkg.in/yaml.v3"
+ "go.yaml.in/yaml/v3"
 )
 func TestLoad(t *testing.T) {
  for _, tc := range []struct{format config.Format; input string}{

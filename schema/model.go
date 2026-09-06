@@ -1,6 +1,6 @@
 package schema
 
-import "gopkg.in/yaml.v3"
+import "go.yaml.in/yaml/v3"
 
 // Location identifies a position in the schema input. Lines and columns start at 1.
 type Location struct {
