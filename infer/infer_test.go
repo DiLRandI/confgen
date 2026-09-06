@@ -90,9 +90,9 @@ func TestInferenceErrors(t *testing.T) {
 		{"a.json", `{"password":null}`, "password"},
 		{"a.yml", "values: []", "list is empty"},
 		{"a.json", `{"values":[]}`, "list is empty"},
-		{"a.yaml", "values: [1, hello]", "item 2 is string"},
-		{"a.json", `{"values":[1,"hello"]}`, "item 2 is string"},
-		{"a.yaml", "values: [{a: 1}, {b: 2}]", "incompatible"},
+		{"a.yaml", "values: [1, hello]", "int64 and string"},
+		{"a.json", `{"values":[1,"hello"]}`, "int64 and string"},
+		{"a.yaml", "values: [{a: 1}, {a: hello}]", "int64 and string"},
 		{"a.yaml", "values: [a, null]", "values[2]"},
 		{"a.yaml", "values: [[1]]", "nested lists"},
 		{"a.yaml", "x: 1\nx: 2", "duplicate"},
@@ -120,7 +120,7 @@ func TestInferenceErrors(t *testing.T) {
 func TestRoundTripConsumer(t *testing.T) {
 	for _, name := range []string{"sample.yaml", "sample.json"} {
 		t.Run(name, func(t *testing.T) {
-			input := `{"server":{"port":8080,"timeout":"30s"},"max":9223372036854775807,"backends":[{"name":"a","port":1},{"name":"b","port":2}]}`
+			input := `{"server":{"port":8080,"timeout":"30s"},"max":9223372036854775807,"backends":[{"name":"a"},{"port":2}]}`
 			m, err := infer.FromConfig(name, []byte(input), infer.Options{Package: "consumer", CopyDefaults: true})
 			if err != nil {
 				t.Fatal(err)
@@ -147,7 +147,7 @@ func TestRoundTripConsumer(t *testing.T) {
 import "testing"
 func TestConfig(t *testing.T) {
  c,e:=Load();if e!=nil{t.Fatal(e)}
- if c.Server.Port!=8080||c.Server.Timeout!="30s"||c.Max!=9223372036854775807||len(c.Backends)!=2||c.Backends[1].Port!=2{t.Fatal("defaults lost")}
+	 if c.Server.Port!=8080||c.Server.Timeout!="30s"||c.Max!=9223372036854775807||len(c.Backends)!=2||c.Backends[0].Port!=0||c.Backends[1].Port!=2{t.Fatal("defaults lost")}
 }`
 			for path, b := range map[string][]byte{"go.mod": []byte(mod), "config_gen.go": code, "config_test.go": []byte(testCode)} {
 				if err := os.WriteFile(filepath.Join(dir, path), b, 0o600); err != nil {

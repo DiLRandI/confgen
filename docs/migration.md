@@ -62,12 +62,12 @@ Changes to generated field types become visible as Go compilation errors in call
 | Signed-range integer | Int64, independent of host architecture or current magnitude |
 | Larger positive integer fitting 64 bits | Uint64 |
 | Finite floating-point value | Float64 |
-| Compatible non-empty list | List; object items must have the same fields and types |
+| Compatible non-empty list | List; object item fields are merged in first-seen order and matching fields must keep the same types |
 | Empty object | Empty object |
 
 Nulls, empty lists, mixed lists, nested lists, and out-of-range numbers need an
 explicit schema or input correction. Object field order may differ between list
-items; the first item's order defines the schema. Dates with YAML timestamp tags
+items; new fields are appended in first-seen order. Dates with YAML timestamp tags
 must be quoted to infer strings. Aliases, merge keys, and duplicate keys are rejected.
 
 confgen never guesses duration/path semantics, maps, secrets, required fields,

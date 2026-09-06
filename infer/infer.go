@@ -99,8 +99,8 @@ func (i inference) field(n *document.Node, path string, defaults bool) (config.F
 			}
 			if f.Item == nil {
 				f.Item = &c
-			} else if !compatible(*f.Item, c) {
-				return f, i.fail(item, path, fmt.Sprintf("list items have incompatible types or shapes: item 1 is %s, item %d is %s", f.Item.Kind, index+1, c.Kind))
+			} else if err := merge(f.Item, c, path+"[]"); err != nil {
+				return f, i.fail(item, err.path, err.reason)
 			}
 		}
 	} else {
@@ -162,29 +162,38 @@ func native(n *document.Node) (any, error) {
 	return n.Scalar()
 }
 
-func compatible(a, b config.FieldDescriptor) bool {
-	if a.Kind != b.Kind {
-		return false
+type mergeConflict struct {
+	path   string
+	reason string
+}
+
+func merge(dst *config.FieldDescriptor, src config.FieldDescriptor, path string) *mergeConflict {
+	if dst.Kind != src.Kind {
+		return &mergeConflict{path: path, reason: fmt.Sprintf("list items have incompatible types: %s and %s", dst.Kind, src.Kind)}
 	}
-	if a.Kind == config.KindObject {
-		if len(a.Children) != len(b.Children) {
-			return false
-		}
-		for _, x := range a.Children {
+	if dst.Kind == config.KindObject {
+		for _, incoming := range src.Children {
 			found := false
-			for _, y := range b.Children {
-				if x.Name == y.Name {
-					found = compatible(x, y)
-					break
+			for index := range dst.Children {
+				if dst.Children[index].Name != incoming.Name {
+					continue
 				}
+				found = true
+				if err := merge(&dst.Children[index], incoming, path+"."+incoming.Name); err != nil {
+					return err
+				}
+				break
 			}
 			if !found {
-				return false
+				dst.Children = append(dst.Children, incoming)
 			}
 		}
 	}
-	if a.Kind == config.KindList {
-		return a.Item != nil && b.Item != nil && compatible(*a.Item, *b.Item)
+	if dst.Kind == config.KindList {
+		if dst.Item == nil || src.Item == nil {
+			return &mergeConflict{path: path, reason: "list items have incompatible shapes"}
+		}
+		return merge(dst.Item, *src.Item, path+"[]")
 	}
-	return true
+	return nil
 }
