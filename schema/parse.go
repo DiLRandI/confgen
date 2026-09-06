@@ -199,6 +199,8 @@ func (p parser) field(n *yaml.Node, path string) (*Field, error) {
 		switch key.Value {
 		case "type":
 			f.Type, err = p.string(value, path, key.Value)
+		case "key":
+			f.Key, err = p.string(value, path, key.Value)
 		case "go_name":
 			f.GoName, err = p.string(value, path, key.Value)
 		case "description":

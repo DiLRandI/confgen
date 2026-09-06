@@ -20,7 +20,7 @@ func TestInference(t *testing.T) {
 		{"config.json", `{"server":{"port":8080,"host":"localhost","timeout":"30s"},"debug":false,"huge":18446744073709551615,"ratio":0.75,"backends":[{"name":"a","port":1},{"port":2,"name":"b"}],"origins":["a","b"],"empty":{}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			m, err := infer.FromConfig(tc.name, []byte(tc.input), infer.Options{Package: "appconfig"})
+			m, err := infer.FromConfig(tc.name, []byte(tc.input), infer.Options{Package: "appconfig", CopyDefaults: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,15 +53,46 @@ func TestInference(t *testing.T) {
 	}
 }
 
+func TestInferenceDoesNotCopyDefaultsByDefault(t *testing.T) {
+	m, err := infer.FromConfig("config.yaml", []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\ndebug: false\n"), infer.Options{Package: "appconfig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range m.Descriptor.Fields {
+		if f.HasDefault {
+			t.Fatalf("field %q unexpectedly has a default", f.Path)
+		}
+		for _, child := range f.Children {
+			if child.HasDefault {
+				t.Fatalf("nested field %q unexpectedly has a default", child.Path)
+			}
+		}
+		if f.Item != nil && f.Item.HasDefault {
+			t.Fatalf("list field %q unexpectedly has an item default", f.Path)
+		}
+	}
+}
+
+func TestInferenceCopiesDefaultsWhenOptedIn(t *testing.T) {
+	m, err := infer.FromConfig("config.yaml", []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\ndebug: false\n"), infer.Options{Package: "appconfig", CopyDefaults: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := m.Descriptor.Fields
+	if fields[0].HasDefault || !fields[0].Children[0].HasDefault || !fields[1].HasDefault || fields[1].Item.HasDefault {
+		t.Fatalf("unexpected opt-in defaults: %+v", fields)
+	}
+}
+
 func TestInferenceErrors(t *testing.T) {
 	for _, tc := range []struct{ name, input, want string }{
 		{"a.yaml", "password: null", "password"},
 		{"a.json", `{"password":null}`, "password"},
 		{"a.yml", "values: []", "list is empty"},
 		{"a.json", `{"values":[]}`, "list is empty"},
-		{"a.yaml", "values: [1, hello]", "item 2 is string"},
-		{"a.json", `{"values":[1,"hello"]}`, "item 2 is string"},
-		{"a.yaml", "values: [{a: 1}, {b: 2}]", "incompatible"},
+		{"a.yaml", "values: [1, hello]", "int64 and string"},
+		{"a.json", `{"values":[1,"hello"]}`, "int64 and string"},
+		{"a.yaml", "values: [{a: 1}, {a: hello}]", "int64 and string"},
 		{"a.yaml", "values: [a, null]", "values[2]"},
 		{"a.yaml", "values: [[1]]", "nested lists"},
 		{"a.yaml", "x: 1\nx: 2", "duplicate"},
@@ -89,8 +120,8 @@ func TestInferenceErrors(t *testing.T) {
 func TestRoundTripConsumer(t *testing.T) {
 	for _, name := range []string{"sample.yaml", "sample.json"} {
 		t.Run(name, func(t *testing.T) {
-			input := `{"server":{"port":8080,"timeout":"30s"},"max":9223372036854775807,"backends":[{"name":"a","port":1},{"name":"b","port":2}]}`
-			m, err := infer.FromConfig(name, []byte(input), infer.Options{Package: "consumer"})
+			input := `{"server":{"port":8080,"timeout":"30s"},"max":9223372036854775807,"backends":[{"name":"a"},{"port":2}]}`
+			m, err := infer.FromConfig(name, []byte(input), infer.Options{Package: "consumer", CopyDefaults: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,7 +147,7 @@ func TestRoundTripConsumer(t *testing.T) {
 import "testing"
 func TestConfig(t *testing.T) {
  c,e:=Load();if e!=nil{t.Fatal(e)}
- if c.Server.Port!=8080||c.Server.Timeout!="30s"||c.Max!=9223372036854775807||len(c.Backends)!=2||c.Backends[1].Port!=2{t.Fatal("defaults lost")}
+	 if c.Server.Port!=8080||c.Server.Timeout!="30s"||c.Max!=9223372036854775807||len(c.Backends)!=2||c.Backends[0].Port!=0||c.Backends[1].Port!=2{t.Fatal("defaults lost")}
 }`
 			for path, b := range map[string][]byte{"go.mod": []byte(mod), "config_gen.go": code, "config_test.go": []byte(testCode)} {
 				if err := os.WriteFile(filepath.Join(dir, path), b, 0o600); err != nil {
@@ -142,9 +173,13 @@ func TestConfig(t *testing.T) {
 func FuzzFromConfig(f *testing.F) {
 	f.Add([]byte("port: 8080"))
 	f.Add([]byte(`{"port":8080}`))
+	f.Add([]byte("fields: {port: {type: int64}}"))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		for _, name := range []string{"fuzz.yaml", "fuzz.json"} {
 			_, _ = infer.FromConfig(name, b, infer.Options{Package: "app"})
+		}
+		if rules, err := infer.ParseOverrides("fuzz.overrides.yaml", b); err == nil {
+			_, _ = infer.FromConfig("config.yaml", []byte("port: null"), infer.Options{Overrides: rules, CopyDefaults: true})
 		}
 	})
 }

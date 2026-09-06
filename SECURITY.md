@@ -6,5 +6,5 @@ when available. If reporting is not enabled, ask the maintainer for a private
 contact in an issue without including vulnerability details.
 
 Include the affected revision, a minimal reproduction with dummy values, and
-the impact. No response-time guarantee is offered. Before a stable release,
-fixes target the development branch.
+the impact. No response-time guarantee is offered. Fixes are proposed through
+pull requests; release timing remains maintainer-controlled.

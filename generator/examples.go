@@ -23,7 +23,7 @@ func ExampleYAML(m *schema.Model) ([]byte, error) {
 	object = func(fields []config.FieldDescriptor) *yaml.Node {
 		n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 		for _, f := range fields {
-			k := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: f.Name, HeadComment: m.Descriptions[f.Path]}
+			k := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: f.ExternalKey(), HeadComment: m.Descriptions[f.Path]}
 			var v *yaml.Node
 			if f.Kind == config.KindObject {
 				v = object(f.Children)
@@ -89,8 +89,8 @@ func exampleValue(f config.FieldDescriptor, raw any, present bool) any {
 		m, _ := raw.(map[string]any)
 		out := map[string]any{}
 		for _, c := range f.Children {
-			v, ok := m[c.Name]
-			out[c.Name] = exampleValue(c, v, ok)
+			v, ok := m[c.ExternalKey()]
+			out[c.ExternalKey()] = exampleValue(c, v, ok)
 		}
 		return out
 	case config.KindList:

@@ -20,9 +20,11 @@ func runInit(args []string, stderr io.Writer) int {
 		fs.PrintDefaults()
 	}
 	from := fs.String("from", "", "existing .yaml, .yml, or .json config")
+	copyDefaults := fs.Bool("copy-defaults", false, "copy inferred input values into schema defaults")
+	overrides := fs.String("overrides", "", "sparse YAML type overrides for canonical field paths")
 	pkg := fs.String("package", "appconfig", "generated Go package")
-	schemaPath := fs.String("schema", "config.schema.yaml", "new editable schema path")
-	out := fs.String("out", "config_gen.go", "new generated Go path")
+	schemaPath := fs.String("schema", "", "new editable schema path (default: <package>/config.schema.yaml)")
+	out := fs.String("out", "", "new generated Go path (default: <package>/config_gen.go)")
 	prefix := fs.String("env-prefix", "", "environment variable prefix")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -30,15 +32,27 @@ func runInit(args []string, stderr io.Writer) int {
 		}
 		return 2
 	}
+	explicit := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
+	if !explicit["schema"] {
+		*schemaPath = filepath.Join(*pkg, "config.schema.yaml")
+	}
+	if !explicit["out"] {
+		*out = filepath.Join(*pkg, "config_gen.go")
+	}
 	fail := func(err error) int { fmt.Fprintln(stderr, "confgen:", err); return 1 }
-	if *from == "" || *schemaPath == "" || *out == "" || fs.NArg() != 0 {
-		return fail(fmt.Errorf("-from and non-empty output paths are required"))
+	if *from == "" || *schemaPath == "" || *out == "" || (explicit["package"] && *pkg == "") || fs.NArg() != 0 {
+		return fail(fmt.Errorf("-from, package, and output paths must be non-empty"))
 	}
 	data, err := os.ReadFile(*from)
 	if err != nil {
 		return fail(err)
 	}
-	m, err := infer.FromConfig(*from, data, infer.Options{Package: *pkg, EnvPrefix: *prefix})
+	rules, err := readOverrides(*overrides)
+	if err != nil {
+		return fail(err)
+	}
+	m, err := infer.FromConfig(*from, data, infer.Options{Package: *pkg, EnvPrefix: *prefix, CopyDefaults: *copyDefaults, Overrides: rules})
 	if err != nil {
 		return fail(err)
 	}

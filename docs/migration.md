@@ -1,79 +1,141 @@
 # Start from existing configuration
 
-Without generation, you maintain both Go fields and configuration data:
-
-```go
-type Config struct {
-    Server struct { Port int }
-}
-```
+You do not need to rename existing keys or recreate your configuration by hand.
+Given `config.yaml`:
 
 ```yaml
-server:
-  port: 8080
-  timeout: 30s
+server-port: 8080
+databaseURL: null
+allowed-hosts: []
+```
+
+Null and empty-list values do not provide enough type information. Create
+`confgen.overrides.yaml` using canonical names:
+
+```yaml
+fields:
+  database_url: {type: string}
+  allowed_hosts: {type: list, items: {type: string}}
 ```
 
 Bootstrap once:
 
 ```sh
-confgen init --from config.yaml --package appconfig \
-  --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
+confgen init --from config.yaml --package appconfig --overrides confgen.overrides.yaml
 ```
 
-confgen creates missing output directories, an editable schema, and typed Go.
-It never modifies `config.yaml` and refuses to replace existing outputs.
-Defaults are copied from the input. Review them for credentials before committing.
-
-The inferred schema uses `int64` for port and `string` for timeout. You can edit it:
+This creates `appconfig/config_gen.go` and an editable `appconfig/config.schema.yaml`:
 
 ```yaml
-timeout:
-  type: duration
-  default: 30s
-  min: 100ms
-  description: Maximum request processing time.
+version: 1
+package: appconfig
+fields:
+  server_port:
+    type: int64
+    key: server-port
+  database_url:
+    type: string
+    key: databaseURL
+  allowed_hosts:
+    type: list
+    key: allowed-hosts
+    items:
+      type: string
 ```
 
-From then on, regenerate from the schema:
+Neither input file is modified. Runtime values are not copied into the schema
+or generated Go. Add `--copy-defaults` only when you intend to embed those values;
+review them for credentials before committing. Nulls are never copied as defaults.
+
+## Load the original file
+
+Use the generated package with the runtime library:
+
+```go
+cfg, err := appconfig.Load(config.File("config.yaml"), config.Env())
+```
+
+In this example, set `DATABASE_URL` in the environment to override the null value.
+Runtime nulls remain errors if no later source replaces them. `cfg.ServerPort`
+comes from `server-port`, and `cfg.AllowedHosts` is an empty string slice.
+
+## Own the schema from here
+
+Add descriptions, required fields, secrets, defaults, environment mappings, and
+validation rules to the full schema. Then regenerate:
 
 ```sh
 confgen generate --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
 ```
 
-This preserves metadata you added. Put that command in a `go:generate` directive,
-as shown in the README. Do not put `init` in a recurring generation command.
-Changes to generated field types become visible as Go compilation errors in callers.
+`init` is one-time onboarding. `generate` is the ongoing schema-driven workflow
+and preserves your added metadata. Never put `init` in a recurring `go:generate`.
+See the README for the generation directive. Incompatible generated type changes
+show up as compilation errors in callers.
+
+`init` creates missing directories and refuses existing destinations. Explicit
+`--schema` and `--out` paths each override their package-relative default. Use new
+destinations to try another inference; there is no overwrite flag.
 
 ## Inference rules
 
 | Input | Inferred type |
 | --- | --- |
-| Mapping | Object; declaration order is retained |
+| Mapping | Object, in declaration order |
 | String, including `30s` | String |
 | Boolean | Bool |
-| Signed-range integer | Int64, independent of host architecture or current magnitude |
+| Signed-range integer | Int64 |
 | Larger positive integer fitting 64 bits | Uint64 |
 | Finite floating-point value | Float64 |
-| Compatible non-empty list | List; object items must have the same fields and types |
+| Compatible non-empty list | List |
 | Empty object | Empty object |
 
-Nulls, empty lists, mixed lists, nested lists, and out-of-range numbers need an
-explicit schema or input correction. Object field order may differ between list
-items; the first item's order defines the schema. Dates with YAML timestamp tags
-must be quoted to infer strings. Aliases, merge keys, and duplicate keys are rejected.
+Object lists use the union of their fields in first-seen order. Missing fields
+are optional; conflicting types still fail. Nulls and empty lists require type
+overrides or an explicit schema. Nested lists and out-of-range numbers are errors.
+Quote YAML dates to keep them strings. Aliases, merge keys, and duplicate keys
+are rejected. Input extensions are `.yaml`, `.yml`, and `.json`.
 
-confgen never guesses duration/path semantics, maps, secrets, required fields,
-constraints, or descriptions. Strings that look numeric remain strings.
-Supported input extensions are `.yaml`, `.yml`, and `.json`.
+Inference never guesses durations, paths, maps, secrets, required fields,
+constraints, or descriptions. Numeric-looking strings stay strings.
 
-For a quick disposable generation without saving a schema:
+## Key names
+
+The schema's `key` property preserves the original file key. `server-port`,
+`serverPort`, and `ServerPort` normalize to `server_port`; `HTTPServer` becomes
+`http_server`, and `logging.level` becomes `logging_level`. Environment names use
+the canonical path, so `server_port` maps to `SERVER_PORT` unless a prefix or
+explicit environment name is set.
+
+Existing snake_case names stay unchanged. Separators become underscores, leading
+digits get a `field_` prefix, and non-ASCII characters use `u` plus their hexadecimal
+code point. A punctuation-only name becomes `field`. Empty keys and keys that
+cannot fit JSON/YAML struct tags are rejected. See [external keys](schema.md#external-keys).
+
+Two keys mapping to the same canonical name are an error, including across list
+items. confgen does not silently merge them or invent numeric suffixes.
+
+## Override scope
+
+Overrides support `type`, scalar `items.type`, and scalar `values.type` only:
+
+```yaml
+fields:
+  server.timeout: {type: duration}
+  labels: {type: map, values: {type: string}}
+```
+
+Use canonical dotted paths for nested object fields. Unknown paths, incompatible
+values, and unsupported properties fail. Overrides inside list objects and new
+object shapes are not supported; edit the full schema for those cases.
+
+With `--copy-defaults`, only compatible non-null values become defaults. A
+collection containing null is omitted as a whole rather than partially copied.
+
+For direct generation without saving a schema, use the same inference options:
 
 ```sh
 confgen generate --from config.json --package appconfig --out appconfig/config_gen.go
 ```
 
-Use `init` when you want an editable contract. Defaults for `init` outputs are
-`config.schema.yaml` and `config_gen.go` in the current directory; pass explicit
-paths when your configuration package is elsewhere. There is no overwrite flag;
-use new destinations when trying another inference.
+Prefer `init` when you want to maintain and enrich a configuration contract.

@@ -34,7 +34,9 @@ type Constraints struct {
 // Field describes a field without relying on struct tags. Treat descriptors and
 // all referenced slices, maps, and defaults as immutable after construction.
 type Field struct {
-	Name        string
+	Name string
+	// Key is the external YAML/JSON name. Empty uses the canonical Name.
+	Key         string
 	Path        string
 	GoName      string
 	GoIndex     []int
@@ -49,4 +51,12 @@ type Field struct {
 	Children    []Field
 	Item        *Field
 	MapValue    *Field
+}
+
+// ExternalKey returns the key used in JSON and YAML documents.
+func (f Field) ExternalKey() string {
+	if f.Key != "" {
+		return f.Key
+	}
+	return f.Name
 }

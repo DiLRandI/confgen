@@ -91,7 +91,174 @@ func TestInitFailures(t *testing.T) {
 		}
 	}
 	var b bytes.Buffer
-	if run([]string{"init", "-h"}, &b) != 0 || !strings.Contains(b.String(), "never overwritten") {
+	if run([]string{"init", "-h"}, &b) != 0 || !strings.Contains(b.String(), "never overwritten") || !strings.Contains(b.String(), "config.schema.yaml") || !strings.Contains(b.String(), "config_gen.go") {
 		t.Fatal(b.String())
+	}
+}
+
+func TestInitCopyDefaults(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "config.yaml")
+	original := []byte("server: {port: 8080, host: localhost}\norigins: [a, b]\npassword: sentinel-secret\n")
+	if err := os.WriteFile(input, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	schemaPath := filepath.Join(dir, "schema.yaml")
+	out := filepath.Join(dir, "config.go")
+	var stderr bytes.Buffer
+	withoutSchema := filepath.Join(dir, "without-schema.yaml")
+	withoutOut := filepath.Join(dir, "without.go")
+	if code := run([]string{"init", "--from", input, "--schema", withoutSchema, "--out", withoutOut}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	withoutCode, err := os.ReadFile(withoutOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(withoutCode, []byte("sentinel-secret")) {
+		t.Fatal("init copied an input secret without opt-in")
+	}
+	if code := run([]string{"init", "--from", input, "--copy-defaults", "--schema", schemaPath, "--out", out}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	schemaBytes, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(schemaBytes, []byte("default:")) {
+		t.Fatal("init --copy-defaults did not copy defaults")
+	}
+	withCode, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(withCode, []byte("sentinel-secret")) {
+		t.Fatal("init --copy-defaults did not copy input values")
+	}
+	unchanged, err := os.ReadFile(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(original, unchanged) {
+		t.Fatal("init changed input")
+	}
+}
+
+func TestInitDefaultOutputPaths(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var stderr bytes.Buffer
+	if code := run([]string{"init", "--from", input}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	for _, path := range []string{filepath.Join("appconfig", "config.schema.yaml"), filepath.Join("appconfig", "config_gen.go")} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("default output %q: %v", path, err)
+		}
+	}
+}
+
+func TestInitPackageOutputPaths(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var stderr bytes.Buffer
+	if code := run([]string{"init", "--from", input, "--package", "settings"}, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	for _, path := range []string{filepath.Join("settings", "config.schema.yaml"), filepath.Join("settings", "config_gen.go")} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("package output %q: %v", path, err)
+		}
+	}
+}
+
+func TestInitMixedOutputPaths(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		expSchema string
+		expOut    string
+	}{
+		{name: "schema only", args: []string{"--schema", "custom/schema.yaml"}, expSchema: "custom/schema.yaml", expOut: filepath.Join("appconfig", "config_gen.go")},
+		{name: "out only", args: []string{"--out", "custom/config.go"}, expSchema: filepath.Join("appconfig", "config.schema.yaml"), expOut: "custom/config.go"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, "input.yaml")
+			if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Chdir(dir)
+			args := append([]string{"init", "--from", input}, tc.args...)
+			var stderr bytes.Buffer
+			if code := run(args, &stderr); code != 0 {
+				t.Fatal(stderr.String())
+			}
+			for _, path := range []string{tc.expSchema, tc.expOut} {
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("output %q: %v", path, err)
+				}
+			}
+		})
+	}
+}
+
+func TestInitInvalidPackageDoesNotCreateDefaultDirectory(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.yaml")
+	if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var stderr bytes.Buffer
+	if code := run([]string{"init", "--from", input, "--package", "bad-package"}, &stderr); code == 0 {
+		t.Fatal("accepted invalid package")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "bad-package")); !os.IsNotExist(err) {
+		t.Fatalf("created output directory before package validation: %v", err)
+	}
+}
+
+func TestInitExplicitEmptyOutputPaths(t *testing.T) {
+	for _, flagName := range []string{"--schema", "--out"} {
+		t.Run(flagName, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, "input.yaml")
+			if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Chdir(dir)
+			var stderr bytes.Buffer
+			if code := run([]string{"init", "--from", input, flagName + "="}, &stderr); code == 0 {
+				t.Fatal("accepted explicitly empty output path")
+			}
+			if _, err := os.Stat(filepath.Join(dir, "appconfig")); !os.IsNotExist(err) {
+				t.Fatalf("created output directory after rejection: %v", err)
+			}
+		})
+	}
+}
+
+func TestInitExplicitEmptyPackage(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input.yaml")
+	if err := os.WriteFile(input, []byte("port: 8080\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var stderr bytes.Buffer
+	if code := run([]string{"init", "--from", input, "--package="}, &stderr); code == 0 {
+		t.Fatal("accepted explicitly empty package")
+	}
+	if _, err := os.Stat("config.schema.yaml"); !os.IsNotExist(err) {
+		t.Fatalf("created output after empty package rejection: %v", err)
 	}
 }

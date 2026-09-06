@@ -101,6 +101,8 @@ func GoName(key string) string {
 func (v *validator) fields(fields []*Field, typePrefix string, inCollection bool) ([]config.FieldDescriptor, error) {
 	out := make([]config.FieldDescriptor, 0, len(fields))
 	names := map[string]bool{}
+	keys := map[string]bool{}
+	canonical := map[string]bool{}
 	for i, f := range fields {
 		if f == nil {
 			return nil, fmt.Errorf("nil schema field")
@@ -119,6 +121,18 @@ func (v *validator) fields(fields []*Field, typePrefix string, inCollection bool
 			return nil, v.fail(f, "duplicate generated Go field name")
 		}
 		names[name] = true
+		if canonical[f.Name] {
+			return nil, v.fail(f, "duplicate canonical field name")
+		}
+		canonical[f.Name] = true
+		external := f.Name
+		if f.Has("key") {
+			external = f.Key
+		}
+		if keys[external] {
+			return nil, v.fail(f, "duplicate external key")
+		}
+		keys[external] = true
 		d, err := v.field(f, typePrefix+name, inCollection)
 		if err != nil {
 			return nil, err
@@ -135,8 +149,20 @@ func (v *validator) fail(f *Field, message string) error {
 }
 
 func (v *validator) field(f *Field, typeName string, inCollection bool) (config.FieldDescriptor, error) {
-	d := config.FieldDescriptor{Name: f.Name, Path: f.Path, Kind: config.Kind(f.Type), Required: f.Required, Secret: f.Secret, EnvDisabled: inCollection}
+	d := config.FieldDescriptor{Name: f.Name, Key: f.Key, Path: f.Path, Kind: config.Kind(f.Type), Required: f.Required, Secret: f.Secret, EnvDisabled: inCollection}
 	fail := func(msg string) (config.FieldDescriptor, error) { return d, v.fail(f, msg) }
+	if f.Has("key") && f.Name == "" {
+		return fail("key is only allowed on named fields")
+	}
+	if f.Has("key") && f.Key == "" {
+		return fail("key must not be empty")
+	}
+	if f.Has("key") && !validExternalKey(f.Key) {
+		return fail("key cannot be represented by JSON and YAML struct tags")
+	}
+	if d.Key == d.Name {
+		d.Key = ""
+	}
 	scalar := false
 	numeric := false
 	length := false
@@ -155,7 +181,7 @@ func (v *validator) field(f *Field, typeName string, inCollection bool) (config.
 	default:
 		return fail("unsupported field type")
 	}
-	allowed := map[string]bool{"type": true, "go_name": true, "description": true, "required": d.Kind != config.KindObject, "default": d.Kind != config.KindObject, "secret": d.Kind != config.KindObject, "env": d.Kind != config.KindObject, "enum": scalar, "min": numeric, "max": numeric, "min_length": length, "max_length": length, "pattern": d.Kind == config.KindString || d.Kind == config.KindPath, "fields": d.Kind == config.KindObject, "items": d.Kind == config.KindList, "values": d.Kind == config.KindMap}
+	allowed := map[string]bool{"type": true, "key": true, "go_name": true, "description": true, "required": d.Kind != config.KindObject, "default": d.Kind != config.KindObject, "secret": d.Kind != config.KindObject, "env": d.Kind != config.KindObject, "enum": scalar, "min": numeric, "max": numeric, "min_length": length, "max_length": length, "pattern": d.Kind == config.KindString || d.Kind == config.KindPath, "fields": d.Kind == config.KindObject, "items": d.Kind == config.KindList, "values": d.Kind == config.KindMap}
 	for _, prop := range []string{"required", "default", "secret", "env", "enum", "min", "max", "min_length", "max_length", "pattern", "fields", "items", "values"} {
 		if f.Has(prop) && !allowed[prop] {
 			return fail(prop + " is incompatible with field type")
@@ -339,7 +365,7 @@ func knownDefault(d config.FieldDescriptor, raw any) error {
 			for k, x := range m {
 				found := false
 				for _, c := range d.Children {
-					if c.Name == k {
+					if c.ExternalKey() == k {
 						found = true
 						if err := knownDefault(c, x); err != nil {
 							return err
@@ -361,4 +387,17 @@ func knownDefault(d config.FieldDescriptor, raw any) error {
 		}
 	}
 	return nil
+}
+
+func validExternalKey(s string) bool {
+	if s == "" || s == "-" {
+		return false
+	}
+	for _, r := range s {
+		if strings.ContainsRune("!#$%&()*+-./:;<=>?@[]^_{|}~ ", r) || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			continue
+		}
+		return false
+	}
+	return true
 }

@@ -35,6 +35,8 @@ func run(args []string, stderr io.Writer) int {
 	}
 	input := fs.String("schema", "", "required YAML schema path")
 	from := fs.String("from", "", "infer directly from YAML or JSON without writing a schema")
+	copyDefaults := fs.Bool("copy-defaults", false, "copy inferred input values into schema defaults")
+	overrides := fs.String("overrides", "", "sparse YAML type overrides; requires -from")
 	pkg := fs.String("package", "appconfig", "Go package for inferred configuration")
 	out := fs.String("out", "config_gen.go", "generated Go output")
 	exYAML := fs.String("example-yaml", "", "optional YAML example output")
@@ -50,6 +52,9 @@ func run(args []string, stderr io.Writer) int {
 	if (*input == "") == (*from == "") || *out == "" || fs.NArg() != 0 {
 		return fail(fmt.Errorf("choose exactly one of -schema or -from and a non-empty -out"))
 	}
+	if *overrides != "" && *from == "" {
+		return fail(fmt.Errorf("-overrides requires -from"))
+	}
 	if *from != "" {
 		*input = *from
 	}
@@ -59,7 +64,11 @@ func run(args []string, stderr io.Writer) int {
 	}
 	var m *schema.Model
 	if *from != "" {
-		m, err = infer.FromConfig(*input, data, infer.Options{Package: *pkg})
+		rules, e := readOverrides(*overrides)
+		if e != nil {
+			return fail(e)
+		}
+		m, err = infer.FromConfig(*input, data, infer.Options{Package: *pkg, CopyDefaults: *copyDefaults, Overrides: rules})
 	} else {
 		m, err = schema.Compile(*input, data)
 	}
@@ -79,6 +88,17 @@ func run(args []string, stderr io.Writer) int {
 	if err != nil {
 		return fail(err)
 	}
+	var overridesAbs string
+	if *overrides != "" {
+		overridesAbs, err = filepath.Abs(*overrides)
+		if err != nil {
+			return fail(err)
+		}
+		overridesAbs, err = filepath.EvalSymlinks(overridesAbs)
+		if err != nil {
+			return fail(err)
+		}
+	}
 	add := func(path string, b []byte) error {
 		abs, e := filepath.Abs(path)
 		if e != nil {
@@ -89,7 +109,7 @@ func run(args []string, stderr io.Writer) int {
 			return e
 		}
 		abs = filepath.Join(dir, filepath.Base(abs))
-		if abs == inputAbs {
+		if abs == inputAbs || abs == overridesAbs {
 			return fmt.Errorf("output cannot overwrite input")
 		}
 		if _, ok := outputs[abs]; ok {

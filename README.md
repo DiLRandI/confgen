@@ -2,8 +2,8 @@
 
 Define config once. Generate type-safe Go.
 
-confgen generates Go configuration from YAML schemas with defaults, validation,
-YAML/JSON loading, and environment overrides. Requires Go 1.26 or newer.
+confgen generates typed Go configuration from existing YAML/JSON files or strict
+YAML schemas, with defaults, validation, and environment overrides. Requires Go 1.26 or newer.
 
 ## Why confgen?
 
@@ -12,21 +12,7 @@ of maintaining them by hand, then load configuration with one call.
 
 ## Quick start
 
-Already have `config.yaml` or `config.json`? After installing, bootstrap your
-configuration package without rewriting the file by hand:
-
-```sh
-confgen init --from config.yaml --package appconfig \
-  --schema appconfig/config.schema.yaml --out appconfig/config_gen.go
-```
-
-This creates a starter schema and Go types. Values become defaults; add required
-fields, secrets, validation, and descriptions as needed. `init` never replaces
-existing files. See the [migration guide](docs/migration.md).
-
-For a new project or an explicit contract, start with a schema below.
-
-### 1. Install
+### Install
 
 Inside your application's Go module:
 
@@ -37,7 +23,38 @@ go install github.com/DiLRandI/confgen/cmd/confgen@latest
 
 Make sure your Go bin directory is on `PATH`. No checkout is needed.
 
-### 2. Define a schema
+### Already have config.yaml?
+
+```sh
+confgen init --from config.yaml --package appconfig
+```
+
+This infers structure and types, creating `appconfig/config.schema.yaml` and
+`appconfig/config_gen.go`. It leaves your file untouched and refuses to replace
+existing outputs. Runtime values are **not copied** into generated source unless
+you explicitly pass `--copy-defaults`.
+
+Keys such as `server-port`, `databaseURL`, and `logging.level` keep working. The
+schema records their original spelling with `key`; generated Go uses exported names.
+Load the original file with `appconfig.Load(config.OptionalFile("config.yaml"), config.Env())`.
+
+For nulls, empty lists, or explicit types, create `confgen.overrides.yaml`:
+
+```yaml
+fields:
+  database_url: {type: string}
+  allowed_hosts: {type: list, items: {type: string}}
+```
+
+```sh
+confgen init --from config.yaml --package appconfig --overrides confgen.overrides.yaml
+```
+
+Overrides use canonical names. See the [migration guide](docs/migration.md) for a
+complete example. After onboarding, edit the schema and use `confgen generate`.
+Do not rerun `init` as part of normal generation.
+
+### Prefer a schema first?
 
 Create `appconfig/config.schema.yaml`:
 
@@ -56,7 +73,7 @@ fields:
     default: false
 ```
 
-### 3. Generate
+### Generate
 
 ```sh
 confgen generate -schema appconfig/config.schema.yaml -out appconfig/config_gen.go
@@ -70,7 +87,7 @@ package appconfig
 //go:generate go run github.com/DiLRandI/confgen/cmd/confgen generate -schema config.schema.yaml -out config_gen.go
 ```
 
-### 4. Load
+### Load
 
 Save as `main.go`, replacing `example.com/myapp` with your module path:
 
@@ -94,7 +111,7 @@ func main() {
 }
 ```
 
-Run `APP_PORT=9000 go run .` to print `9000 false`.
+With the schema-first example above, run `APP_PORT=9000 go run .` to print `9000 false`.
 
 ## Configuration precedence
 
@@ -135,6 +152,7 @@ returned struct. Never put credentials in schema defaults.
 ## Documentation
 
 [Go reference](https://pkg.go.dev/github.com/DiLRandI/confgen/config) ·
+[Migration guide](docs/migration.md) ·
 [Application example](examples/README.md) · [Advanced loading](docs/runtime.md) ·
 [Benchmarks](docs/benchmarks.md)
 

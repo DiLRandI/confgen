@@ -1,5 +1,5 @@
 // Package infer bootstraps configuration contracts from existing YAML or JSON.
-// Values become defaults. It never guesses requiredness, secrets, or durations.
+// Input values are copied into schema defaults only when Options.CopyDefaults is true.
 package infer
 
 import (
@@ -14,6 +14,11 @@ import (
 type Options struct {
 	Package   string
 	EnvPrefix string
+	// CopyDefaults embeds input values in the schema and generated Go.
+	// It is false by default.
+	CopyDefaults bool
+	// Overrides uses canonical dotted paths, such as server.timeout.
+	Overrides map[string]TypeOverride
 }
 
 // Error describes an ambiguous or unsupported input without echoing its value.
@@ -38,16 +43,24 @@ func FromConfig(name string, data []byte, options Options) (*schema.Model, error
 }
 
 func fromNode(name string, n *document.Node, options Options) (*schema.Model, error) {
-	i := inference{file: name}
+	if err := validateOverrides(options.Overrides); err != nil {
+		return nil, err
+	}
+	i := inference{file: name, overrides: options.Overrides, used: map[string]bool{}}
 	if n.Fields == nil {
 		return nil, i.fail(n, "<root>", "configuration must be an object")
 	}
 	if options.Package == "" {
 		options.Package = "appconfig"
 	}
-	f, err := i.field(n, "", true)
+	f, err := i.field(n, "", options.CopyDefaults)
 	if err != nil {
 		return nil, err
+	}
+	for _, path := range overridePaths(options.Overrides) {
+		if !i.used[path] {
+			return nil, fmt.Errorf("override references unknown field %q", path)
+		}
 	}
 	m := &schema.Model{Package: options.Package, Name: "Config", Descriptor: config.Descriptor{RootName: "Config", EnvPrefix: options.EnvPrefix, Fields: f.Children}}
 	b, err := schema.Render(m)
@@ -57,26 +70,50 @@ func fromNode(name string, n *document.Node, options Options) (*schema.Model, er
 	return schema.Compile(name+" (inferred schema)", b)
 }
 
-type inference struct{ file string }
+type inference struct {
+	file      string
+	overrides map[string]TypeOverride
+	used      map[string]bool
+}
 
 func (i inference) fail(n *document.Node, path, reason string) error {
 	return &Error{Path: path, Reason: reason, Location: schema.Location{File: i.file, Line: n.Line, Column: n.Column}}
 }
 
 func (i inference) field(n *document.Node, path string, defaults bool) (config.FieldDescriptor, error) {
+	if rule, ok := i.overrides[path]; ok {
+		i.used[path] = true
+		return i.override(n, path, defaults, rule)
+	}
+	return i.inferField(n, path, defaults)
+}
+
+func (i inference) inferField(n *document.Node, path string, defaults bool) (config.FieldDescriptor, error) {
 	f := config.FieldDescriptor{Path: path}
 	if n.Fields != nil {
 		f.Kind = config.KindObject
+		seen := map[string]string{}
 		for _, key := range n.OrderedKeys() {
-			cp := key
+			if key == "" {
+				return f, i.fail(n.Fields[key], path, "external key must not be empty")
+			}
+			name := canonicalName(key)
+			if previous, ok := seen[name]; ok {
+				return f, i.fail(n.Fields[key], path, fmt.Sprintf("%q and %q both map to canonical field %q", previous, key, name))
+			}
+			seen[name] = key
+			cp := name
 			if path != "" {
-				cp = path + "." + key
+				cp = path + "." + name
 			}
 			c, err := i.field(n.Fields[key], cp, defaults)
 			if err != nil {
 				return f, err
 			}
-			c.Name = key
+			c.Name = name
+			if name != key {
+				c.Key = key
+			}
 			f.Children = append(f.Children, c)
 		}
 		return f, nil
@@ -96,8 +133,8 @@ func (i inference) field(n *document.Node, path string, defaults bool) (config.F
 			}
 			if f.Item == nil {
 				f.Item = &c
-			} else if !compatible(*f.Item, c) {
-				return f, i.fail(item, path, fmt.Sprintf("list items have incompatible types or shapes: item 1 is %s, item %d is %s", f.Item.Kind, index+1, c.Kind))
+			} else if err := merge(f.Item, c, path+"[]"); err != nil {
+				return f, i.fail(item, err.path, err.reason)
 			}
 		}
 	} else {
@@ -159,29 +196,41 @@ func native(n *document.Node) (any, error) {
 	return n.Scalar()
 }
 
-func compatible(a, b config.FieldDescriptor) bool {
-	if a.Kind != b.Kind {
-		return false
+type mergeConflict struct {
+	path   string
+	reason string
+}
+
+func merge(dst *config.FieldDescriptor, src config.FieldDescriptor, path string) *mergeConflict {
+	if dst.Name != "" && dst.ExternalKey() != src.ExternalKey() {
+		return &mergeConflict{path: path, reason: fmt.Sprintf("%q and %q both map to canonical field %q", dst.ExternalKey(), src.ExternalKey(), dst.Name)}
 	}
-	if a.Kind == config.KindObject {
-		if len(a.Children) != len(b.Children) {
-			return false
-		}
-		for _, x := range a.Children {
+	if dst.Kind != src.Kind {
+		return &mergeConflict{path: path, reason: fmt.Sprintf("list items have incompatible types: %s and %s", dst.Kind, src.Kind)}
+	}
+	if dst.Kind == config.KindObject {
+		for _, incoming := range src.Children {
 			found := false
-			for _, y := range b.Children {
-				if x.Name == y.Name {
-					found = compatible(x, y)
-					break
+			for index := range dst.Children {
+				if dst.Children[index].Name != incoming.Name {
+					continue
 				}
+				found = true
+				if err := merge(&dst.Children[index], incoming, path+"."+incoming.Name); err != nil {
+					return err
+				}
+				break
 			}
 			if !found {
-				return false
+				dst.Children = append(dst.Children, incoming)
 			}
 		}
 	}
-	if a.Kind == config.KindList {
-		return a.Item != nil && b.Item != nil && compatible(*a.Item, *b.Item)
+	if dst.Kind == config.KindList {
+		if dst.Item == nil || src.Item == nil {
+			return &mergeConflict{path: path, reason: "list items have incompatible shapes"}
+		}
+		return merge(dst.Item, *src.Item, path+"[]")
 	}
-	return true
+	return nil
 }

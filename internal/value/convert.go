@@ -107,7 +107,7 @@ func Convert(f Field, raw any, text bool, path string) (any, []Problem) {
 		out := make(map[string]any)
 		var problems []Problem
 		for _, child := range f.Children {
-			v, present := m[child.Name]
+			v, present := m[child.ExternalKey()]
 			if !present && child.HasDefault {
 				v, present = child.Default, true
 			}

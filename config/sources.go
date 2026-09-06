@@ -104,7 +104,7 @@ func parseSource(data []byte, format Format, source, file string, d *Descriptor)
 	var flatten func([]FieldDescriptor, *document.Node)
 	flatten = func(fields []FieldDescriptor, node *document.Node) {
 		for _, f := range fields {
-			n, ok := node.Fields[f.Name]
+			n, ok := node.Fields[f.ExternalKey()]
 			if !ok {
 				continue
 			}
@@ -149,14 +149,18 @@ func checkKnown(n *document.Node, f FieldDescriptor, path string, ignore bool, s
 		for _, key := range n.Keys() {
 			var child *FieldDescriptor
 			for i := range f.Children {
-				if f.Children[i].Name == key {
+				if f.Children[i].ExternalKey() == key {
 					child = &f.Children[i]
 					break
 				}
 			}
-			cp := key
+			name := key
+			if child != nil {
+				name = child.Name
+			}
+			cp := name
 			if path != "" {
-				cp = path + "." + key
+				cp = path + "." + name
 			}
 			if secret {
 				cp = path
