@@ -57,6 +57,9 @@ func renderFields(m *Model, fields []config.FieldDescriptor) *yaml.Node {
 func renderField(m *Model, f config.FieldDescriptor) *yaml.Node {
 	n := mapping()
 	put(n, "type", encoded(string(f.Kind)))
+	if f.Key != "" && f.Key != f.Name {
+		put(n, "key", encoded(f.Key))
+	}
 	if f.GoName != "" && f.GoName != GoName(f.Name) {
 		put(n, "go_name", encoded(f.GoName))
 	}
@@ -119,8 +122,8 @@ func renderDefault(f config.FieldDescriptor, v any) *yaml.Node {
 		if raw, ok := v.(map[string]any); ok {
 			n := mapping()
 			for _, c := range f.Children {
-				if x, ok := raw[c.Name]; ok {
-					put(n, c.Name, renderDefault(c, x))
+				if x, ok := raw[c.ExternalKey()]; ok {
+					put(n, c.ExternalKey(), renderDefault(c, x))
 				}
 			}
 			return n

@@ -24,6 +24,7 @@ type Schema struct {
 // retain YAML types and precision until semantic validation.
 type Field struct {
 	Name        string
+	Key         string
 	Path        string
 	Type        string
 	GoName      string

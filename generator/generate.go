@@ -58,7 +58,7 @@ func Generate(m *schema.Model, options Options) ([]byte, error) {
 					fmt.Fprintf(&b, "// %s\n", line)
 				}
 			}
-			fmt.Fprintf(&b, "%s %s `json:%q yaml:%q`\n", f.GoName, goType(m, f), f.Name, f.Name)
+			fmt.Fprintf(&b, "%s %s `json:%q yaml:%q`\n", f.GoName, goType(m, f), f.ExternalKey(), f.ExternalKey())
 		}
 		fmt.Fprintln(&b, "}")
 		for _, f := range fields {
@@ -129,7 +129,11 @@ func visit(fields []config.FieldDescriptor, fn func(config.FieldDescriptor)) {
 }
 
 func renderField(b *bytes.Buffer, f config.FieldDescriptor) {
-	fmt.Fprintf(b, "{Name:%q,Path:%q,GoName:%q,Kind:%q,Required:%t,Secret:%t,EnvName:%q,EnvDisabled:%t,GoIndex:[]int{", f.Name, f.Path, f.GoName, f.Kind, f.Required, f.Secret, f.EnvName, f.EnvDisabled)
+	fmt.Fprintf(b, "{Name:%q,", f.Name)
+	if f.Key != "" {
+		fmt.Fprintf(b, "Key:%q,", f.Key)
+	}
+	fmt.Fprintf(b, "Path:%q,GoName:%q,Kind:%q,Required:%t,Secret:%t,EnvName:%q,EnvDisabled:%t,GoIndex:[]int{", f.Path, f.GoName, f.Kind, f.Required, f.Secret, f.EnvName, f.EnvDisabled)
 	for _, i := range f.GoIndex {
 		fmt.Fprintf(b, "%d,", i)
 	}

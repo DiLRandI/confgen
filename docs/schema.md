@@ -8,6 +8,26 @@ Field names use lowercase letters, digits, and underscores, starting with a lett
 `go_name` overrides the exported Go name. `description` becomes field GoDoc.
 Duplicate keys, unknown properties, and generated name collisions are errors.
 
+## External keys
+
+Use `key` when the file key differs from the canonical schema name:
+
+```yaml
+fields:
+  server_port: {type: int, key: server-port}
+```
+
+This reads `server-port` from YAML/JSON and generates `ServerPort` with matching
+struct tags. Paths and automatic environment mappings still use `server_port`,
+so `env_prefix: APP` produces `APP_SERVER_PORT`. The same rule applies to nested
+objects and list members. Object keys inside collection defaults use external names.
+
+External keys must be unique within their object and non-empty. They must also
+fit JSON and YAML struct tags: commas, quotes, backslashes, control characters,
+backticks, and the special key `-` are rejected. Common camelCase, PascalCase,
+kebab-case, dotted names, and Unicode letters are supported. Omit `key` to use
+the canonical name. Collection `items` and `values` cannot have their own key.
+
 ## Types
 
 | Schema type | Go type |
