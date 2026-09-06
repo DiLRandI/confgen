@@ -70,16 +70,28 @@ func (i inference) field(n *document.Node, path string, defaults bool) (config.F
 	f := config.FieldDescriptor{Path: path}
 	if n.Fields != nil {
 		f.Kind = config.KindObject
+		seen := map[string]string{}
 		for _, key := range n.OrderedKeys() {
-			cp := key
+			if key == "" {
+				return f, i.fail(n.Fields[key], path, "external key must not be empty")
+			}
+			name := canonicalName(key)
+			if previous, ok := seen[name]; ok {
+				return f, i.fail(n.Fields[key], path, fmt.Sprintf("%q and %q both map to canonical field %q", previous, key, name))
+			}
+			seen[name] = key
+			cp := name
 			if path != "" {
-				cp = path + "." + key
+				cp = path + "." + name
 			}
 			c, err := i.field(n.Fields[key], cp, defaults)
 			if err != nil {
 				return f, err
 			}
-			c.Name = key
+			c.Name = name
+			if name != key {
+				c.Key = key
+			}
 			f.Children = append(f.Children, c)
 		}
 		return f, nil
@@ -168,6 +180,9 @@ type mergeConflict struct {
 }
 
 func merge(dst *config.FieldDescriptor, src config.FieldDescriptor, path string) *mergeConflict {
+	if dst.Name != "" && dst.ExternalKey() != src.ExternalKey() {
+		return &mergeConflict{path: path, reason: fmt.Sprintf("%q and %q both map to canonical field %q", dst.ExternalKey(), src.ExternalKey(), dst.Name)}
+	}
 	if dst.Kind != src.Kind {
 		return &mergeConflict{path: path, reason: fmt.Sprintf("list items have incompatible types: %s and %s", dst.Kind, src.Kind)}
 	}

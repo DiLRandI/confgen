@@ -74,6 +74,20 @@ confgen never guesses duration/path semantics, maps, secrets, required fields,
 constraints, or descriptions. Strings that look numeric remain strings.
 Supported input extensions are `.yaml`, `.yml`, and `.json`.
 
+## Existing key names
+
+Inference preserves file keys through the schema's `key` property. For example,
+`server-port`, `serverPort`, and `ServerPort` become canonical `server_port`;
+`HTTPServer` becomes `http_server`, and `logging.level` becomes `logging_level`.
+Existing snake_case names are retained. Separators become underscores, leading
+digits get a `field_` prefix, and non-ASCII characters use `u` plus their hexadecimal
+code point. A punctuation-only name becomes `field`. Empty keys and keys that
+cannot fit JSON/YAML struct tags are errors.
+
+Two keys mapping to the same canonical name are an error, including across list
+items. No numeric suffixes are invented. Runtime loading still uses the original
+keys, so the input file does not need renaming or reformatting.
+
 For a quick disposable generation without saving a schema:
 
 ```sh
